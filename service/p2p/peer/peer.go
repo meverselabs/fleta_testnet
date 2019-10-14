@@ -7,7 +7,5 @@ type Peer interface {
 	Close()
 	ReadPacket() (uint16, bool, []byte, error)
 	SendPacket(bs []byte)
-	UpdateGuessHeight(height uint32)
-	GuessHeight() uint32
 	ConnectedTime() int64
 }

@@ -2,23 +2,18 @@ package p2p
 
 import (
 	"net"
-	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/fletaio/fleta/common/queue"
 	"github.com/fletaio/fleta/common/util"
 	"github.com/fletaio/fleta/core/types"
 )
 
 // TCPPeer manages send and recv of the connection
 type TCPPeer struct {
-	sync.Mutex
 	conn          net.Conn
 	id            string
 	name          string
-	guessHeight   uint32
-	writeQueue    *queue.Queue
 	isClose       bool
 	connectedTime int64
 	pingCount     uint64
@@ -34,7 +29,6 @@ func NewTCPPeer(conn net.Conn, ID string, Name string, connectedTime int64) *TCP
 		conn:          conn,
 		id:            ID,
 		name:          Name,
-		writeQueue:    queue.NewQueue(),
 		connectedTime: connectedTime,
 		pingType:      types.DefineHashedType("p2p.PingMessage"),
 	}
@@ -55,19 +49,6 @@ func NewTCPPeer(conn net.Conn, ID string, Name string, connectedTime int64) *TCP
 					return
 				}
 				if atomic.AddUint64(&p.pingCount, 1) > pingCountLimit {
-					return
-				}
-			default:
-				v := p.writeQueue.Pop()
-				if v == nil {
-					time.Sleep(50 * time.Millisecond)
-					continue
-				}
-				if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
-					return
-				}
-				_, err := p.conn.Write(v.([]byte))
-				if err != nil {
 					return
 				}
 			}
@@ -129,20 +110,13 @@ func (p *TCPPeer) ReadPacket() (uint16, bool, []byte, error) {
 
 // SendPacket sends packet to the WebsocketPeer
 func (p *TCPPeer) SendPacket(bs []byte) {
-	p.writeQueue.Push(bs)
-}
-
-// UpdateGuessHeight updates the guess height of the TCPPeer
-func (p *TCPPeer) UpdateGuessHeight(height uint32) {
-	p.Lock()
-	defer p.Unlock()
-
-	p.guessHeight = height
-}
-
-// GuessHeight updates the guess height of the TCPPeer
-func (p *TCPPeer) GuessHeight() uint32 {
-	return p.guessHeight
+	if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		return
+	}
+	_, err := p.conn.Write(bs)
+	if err != nil {
+		return
+	}
 }
 
 // ConnectedTime returns peer connected time

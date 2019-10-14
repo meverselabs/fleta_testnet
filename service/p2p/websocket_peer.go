@@ -1,23 +1,18 @@
 package p2p
 
 import (
-	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/fletaio/fleta/common/queue"
 	"github.com/fletaio/fleta/common/util"
 	"github.com/gorilla/websocket"
 )
 
 // WebsocketPeer manages send and recv of the connection
 type WebsocketPeer struct {
-	sync.Mutex
 	conn          *websocket.Conn
 	id            string
 	name          string
-	guessHeight   uint32
-	writeQueue    *queue.Queue
 	isClose       bool
 	connectedTime int64
 	pingCount     uint64
@@ -32,7 +27,6 @@ func NewWebsocketPeer(conn *websocket.Conn, ID string, Name string, connectedTim
 		conn:          conn,
 		id:            ID,
 		name:          Name,
-		writeQueue:    queue.NewQueue(),
 		connectedTime: connectedTime,
 	}
 	conn.EnableWriteCompression(false)
@@ -53,18 +47,6 @@ func NewWebsocketPeer(conn *websocket.Conn, ID string, Name string, connectedTim
 					return
 				}
 				if atomic.AddUint64(&p.pingCount, 1) > pingCountLimit {
-					return
-				}
-			default:
-				v := p.writeQueue.Pop()
-				if v == nil {
-					time.Sleep(50 * time.Millisecond)
-					continue
-				}
-				if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
-					return
-				}
-				if err := p.conn.WriteMessage(websocket.BinaryMessage, v.([]byte)); err != nil {
 					return
 				}
 			}
@@ -113,20 +95,12 @@ func (p *WebsocketPeer) ReadPacket() (uint16, bool, []byte, error) {
 
 // SendPacket sends packet to the WebsocketPeer
 func (p *WebsocketPeer) SendPacket(bs []byte) {
-	p.writeQueue.Push(bs)
-}
-
-// UpdateGuessHeight updates the guess height of the WebsocketPeer
-func (p *WebsocketPeer) UpdateGuessHeight(height uint32) {
-	p.Lock()
-	defer p.Unlock()
-
-	p.guessHeight = height
-}
-
-// GuessHeight updates the guess height of the WebsocketPeer
-func (p *WebsocketPeer) GuessHeight() uint32 {
-	return p.guessHeight
+	if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		return
+	}
+	if err := p.conn.WriteMessage(websocket.BinaryMessage, bs); err != nil {
+		return
+	}
 }
 
 // ConnectedTime returns peer connected time
