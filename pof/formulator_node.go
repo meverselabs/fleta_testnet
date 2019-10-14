@@ -2,6 +2,8 @@ package pof
 
 import (
 	"bytes"
+	"compress/gzip"
+	"io/ioutil"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -307,7 +309,7 @@ func (fr *FormulatorNode) OnObserverConnected(p peer.Peer) {
 		Height:   height,
 		LastHash: lastHash,
 	}
-	p.Send(nm)
+	p.SendPacket(p2p.MessageToPacket(nm))
 }
 
 // OnObserverDisconnected is called when the observer peer is disconnected
@@ -336,9 +338,35 @@ func (fr *FormulatorNode) OnDisconnected(p peer.Peer) {
 }
 
 // OnRecv called when message received
-func (fr *FormulatorNode) OnRecv(p peer.Peer, m interface{}) error {
+func (fr *FormulatorNode) OnRecv(p peer.Peer, t uint16, compressed bool, bs []byte) error {
 	var SenderPublicHash common.PublicHash
 	copy(SenderPublicHash[:], []byte(p.ID()))
+
+	var mbs []byte
+	if compressed {
+		zr, err := gzip.NewReader(bytes.NewReader(bs))
+		if err != nil {
+			return err
+		}
+		defer zr.Close()
+
+		v, err := ioutil.ReadAll(zr)
+		if err != nil {
+			return err
+		}
+		mbs = v
+	} else {
+		mbs = bs
+	}
+
+	fc := encoding.Factory("message")
+	m, err := fc.Create(t)
+	if err != nil {
+		return err
+	}
+	if err := encoding.Unmarshal(mbs, &m); err != nil {
+		return err
+	}
 
 	switch msg := m.(type) {
 	case *p2p.RequestMessage:
@@ -514,7 +542,33 @@ func (fr *FormulatorNode) tryRequestBlocks() {
 	}
 }
 
-func (fr *FormulatorNode) onRecv(p peer.Peer, m interface{}) error {
+func (fr *FormulatorNode) onRecv(p peer.Peer, t uint16, compressed bool, bs []byte) error {
+	var mbs []byte
+	if compressed {
+		zr, err := gzip.NewReader(bytes.NewReader(bs))
+		if err != nil {
+			return err
+		}
+		defer zr.Close()
+
+		v, err := ioutil.ReadAll(zr)
+		if err != nil {
+			return err
+		}
+		mbs = v
+	} else {
+		mbs = bs
+	}
+
+	fc := encoding.Factory("message")
+	m, err := fc.Create(t)
+	if err != nil {
+		return err
+	}
+	if err := encoding.Unmarshal(mbs, &m); err != nil {
+		return err
+	}
+
 	if err := fr.handleMessage(p, m, 0); err != nil {
 		//rlog.Println(err)
 		return nil
@@ -559,9 +613,7 @@ func (fr *FormulatorNode) handleMessage(p peer.Peer, m interface{}, RetryCount i
 					Height: Height + 1,
 					Count:  Count,
 				}
-				if err := p.Send(sm); err != nil {
-					return err
-				}
+				p.SendPacket(p2p.MessageToPacket(sm))
 			}
 			go func() {
 				time.Sleep(50 * time.Millisecond)
@@ -750,9 +802,7 @@ func (fr *FormulatorNode) handleMessage(p peer.Peer, m interface{}, RetryCount i
 					sm := &p2p.RequestMessage{
 						Height: TargetHeight,
 					}
-					if err := p.Send(sm); err != nil {
-						return err
-					}
+					p.SendPacket(p2p.MessageToPacket(sm))
 					fr.requestTimer.Add(TargetHeight, 2*time.Second, p.ID())
 				}
 			}
@@ -933,10 +983,8 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 		} else {
 			nm.GeneratorSignature = sig
 		}
+		p.SendPacket(p2p.MessageToPacket(nm))
 
-		if err := p.Send(nm); err != nil {
-			return err
-		}
 		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenMessage", nm.Block.Header.Height, len(nm.Block.Transactions))
 
 		fr.lastGenMessages = append(fr.lastGenMessages, nm)

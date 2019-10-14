@@ -1,7 +1,6 @@
 package pof
 
 import (
-	"bytes"
 	crand "crypto/rand"
 	"encoding/binary"
 	"net"
@@ -13,9 +12,7 @@ import (
 	"github.com/fletaio/fleta/common/hash"
 	"github.com/fletaio/fleta/common/key"
 	"github.com/fletaio/fleta/common/rlog"
-	"github.com/fletaio/fleta/common/util"
 	"github.com/fletaio/fleta/core/chain"
-	"github.com/fletaio/fleta/encoding"
 	"github.com/fletaio/fleta/service/p2p"
 	"github.com/fletaio/fleta/service/p2p/peer"
 )
@@ -137,10 +134,7 @@ func (ms *ObserverNodeMesh) SendTo(pubhash common.PublicHash, m interface{}) err
 		return ErrNotExistObserverPeer
 	}
 
-	if err := p.Send(m); err != nil {
-		rlog.Println(err)
-		ms.RemovePeer(p.ID())
-	}
+	p.SendPacket(p2p.MessageToPacket(m))
 	return nil
 }
 
@@ -163,15 +157,12 @@ func (ms *ObserverNodeMesh) SendAnyone(m interface{}) error {
 		return ErrNotExistObserverPeer
 	}
 
-	if err := p.Send(m); err != nil {
-		rlog.Println(err)
-		ms.RemovePeer(p.ID())
-	}
+	p.SendPacket(p2p.MessageToPacket(m))
 	return nil
 }
 
-// BroadcastRaw sends a message to all peers
-func (ms *ObserverNodeMesh) BroadcastRaw(bs []byte) {
+// BroadcastPacket sends a packet to all peers
+func (ms *ObserverNodeMesh) BroadcastPacket(bs []byte) {
 	peerMap := map[string]peer.Peer{}
 	ms.Lock()
 	for _, p := range ms.clientPeerMap {
@@ -183,25 +174,12 @@ func (ms *ObserverNodeMesh) BroadcastRaw(bs []byte) {
 	ms.Unlock()
 
 	for _, p := range peerMap {
-		p.SendRaw(bs)
+		p.SendPacket(bs)
 	}
 }
 
 // BroadcastMessage sends a message to all peers
 func (ms *ObserverNodeMesh) BroadcastMessage(m interface{}) error {
-	var buffer bytes.Buffer
-	fc := encoding.Factory("message")
-	t, err := fc.TypeOf(m)
-	if err != nil {
-		return err
-	}
-	buffer.Write(util.Uint16ToBytes(t))
-	enc := encoding.NewEncoder(&buffer)
-	if err := enc.Encode(m); err != nil {
-		return err
-	}
-	data := buffer.Bytes()
-
 	peerMap := map[string]peer.Peer{}
 	ms.Lock()
 	for _, p := range ms.clientPeerMap {
@@ -212,8 +190,9 @@ func (ms *ObserverNodeMesh) BroadcastMessage(m interface{}) error {
 	}
 	ms.Unlock()
 
+	bs := p2p.MessageToPacket(m)
 	for _, p := range peerMap {
-		p.SendRaw(data)
+		p.SendPacket(bs)
 	}
 	return nil
 }
@@ -306,11 +285,11 @@ func (ms *ObserverNodeMesh) handleConnection(p peer.Peer) error {
 	}
 
 	for {
-		m, _, err := p.ReadMessageData()
+		t, compressed, bs, err := p.ReadPacket()
 		if err != nil {
 			return err
 		}
-		if err := ms.ob.onObserverRecv(p, m); err != nil {
+		if err := ms.ob.onObserverRecv(p, t, compressed, bs); err != nil {
 			return err
 		}
 	}

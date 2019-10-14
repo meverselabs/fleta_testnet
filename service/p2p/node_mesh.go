@@ -209,11 +209,11 @@ func (ms *NodeMesh) ExceptCastLimit(ID string, m interface{}, Limit int) error {
 
 // BroadcastMessage sends a message to all peers
 func (ms *NodeMesh) BroadcastMessage(m interface{}) {
-	ms.BroadcastRaw(MessageToPacket(m))
+	ms.BroadcastPacket(MessageToPacket(m))
 }
 
-// BroadcastRaw sends a message to all peers
-func (ms *NodeMesh) BroadcastRaw(bs []byte) {
+// BroadcastPacket sends a packet to all peers
+func (ms *NodeMesh) BroadcastPacket(bs []byte) {
 	peerMap := map[string]peer.Peer{}
 	ms.Lock()
 	for _, p := range ms.clientPeerMap {

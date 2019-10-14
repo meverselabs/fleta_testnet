@@ -2,6 +2,8 @@ package pof
 
 import (
 	"bytes"
+	"compress/gzip"
+	"io/ioutil"
 	"sort"
 	"sync"
 	"time"
@@ -11,7 +13,6 @@ import (
 	"github.com/fletaio/fleta/common/key"
 	"github.com/fletaio/fleta/common/queue"
 	"github.com/fletaio/fleta/common/rlog"
-	"github.com/fletaio/fleta/common/util"
 	"github.com/fletaio/fleta/core/chain"
 	"github.com/fletaio/fleta/core/types"
 	"github.com/fletaio/fleta/encoding"
@@ -302,7 +303,33 @@ func (ob *ObserverNode) resetVoteRound(resetStat bool) {
 	}
 }
 
-func (ob *ObserverNode) onObserverRecv(p peer.Peer, m interface{}) error {
+func (ob *ObserverNode) onObserverRecv(p peer.Peer, t uint16, compressed bool, bs []byte) error {
+	var mbs []byte
+	if compressed {
+		zr, err := gzip.NewReader(bytes.NewReader(bs))
+		if err != nil {
+			return err
+		}
+		defer zr.Close()
+
+		v, err := ioutil.ReadAll(zr)
+		if err != nil {
+			return err
+		}
+		mbs = v
+	} else {
+		mbs = bs
+	}
+
+	fc := encoding.Factory("message")
+	m, err := fc.Create(t)
+	if err != nil {
+		return err
+	}
+	if err := encoding.Unmarshal(mbs, &m); err != nil {
+		return err
+	}
+
 	if msg, is := m.(*BlockGenMessage); is {
 		ob.messageQueue.Push(&messageItem{
 			Message: msg,
@@ -318,8 +345,35 @@ func (ob *ObserverNode) onObserverRecv(p peer.Peer, m interface{}) error {
 	return nil
 }
 
-func (ob *ObserverNode) onFormulatorRecv(p peer.Peer, m interface{}, raw []byte) error {
+func (ob *ObserverNode) onFormulatorRecv(p peer.Peer, t uint16, compressed bool, bs []byte) error {
 	cp := ob.cs.cn.Provider()
+
+	var mbs []byte
+	if compressed {
+		zr, err := gzip.NewReader(bytes.NewReader(bs))
+		if err != nil {
+			return err
+		}
+		defer zr.Close()
+
+		v, err := ioutil.ReadAll(zr)
+		if err != nil {
+			return err
+		}
+		mbs = v
+	} else {
+		mbs = bs
+	}
+
+	fc := encoding.Factory("message")
+	m, err := fc.Create(t)
+	if err != nil {
+		return err
+	}
+	if err := encoding.Unmarshal(mbs, &m); err != nil {
+		return err
+	}
+	raw := bs
 
 	switch msg := m.(type) {
 	case *BlockGenMessage:
@@ -373,9 +427,7 @@ func (ob *ObserverNode) onFormulatorRecv(p peer.Peer, m interface{}, raw []byte)
 				sm := &p2p.BlockMessage{
 					Blocks: list,
 				}
-				if err := p.Send(sm); err != nil {
-					return err
-				}
+				p.SendPacket(p2p.MessageToPacket(sm))
 				if len(list) > 0 {
 					p.UpdateGuessHeight(list[len(list)-1].Header.Height)
 				}
@@ -718,13 +770,10 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 
 		if ob.round.MinRoundVoteAck != nil {
 			if ob.round.MinRoundVoteAck.PublicHash == ob.myPublicHash && len(raw) > 0 {
-				var buffer bytes.Buffer
-				buffer.Write(util.Uint16ToBytes(types.DefineHashedType("pof.BlockGenMessage")))
-				buffer.Write(raw)
 				if debug.DEBUG {
 					rlog.Println(cp.Height(), "BroadcastRaw", msg.Block.Header.Height, ob.round.RoundState, len(ob.adjustFormulatorMap()), ob.fs.PeerCount(), (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
 				}
-				ob.ms.BroadcastRaw(buffer.Bytes())
+				ob.ms.BroadcastPacket(raw)
 			}
 		}
 

@@ -1,7 +1,6 @@
 package pof
 
 import (
-	"bytes"
 	crand "crypto/rand"
 	"encoding/binary"
 	"sync"
@@ -12,9 +11,7 @@ import (
 	"github.com/fletaio/fleta/common/hash"
 	"github.com/fletaio/fleta/common/key"
 	"github.com/fletaio/fleta/common/rlog"
-	"github.com/fletaio/fleta/common/util"
 	"github.com/fletaio/fleta/core/chain"
-	"github.com/fletaio/fleta/encoding"
 	"github.com/fletaio/fleta/service/p2p"
 	"github.com/fletaio/fleta/service/p2p/peer"
 	"github.com/gorilla/websocket"
@@ -93,42 +90,17 @@ func (ms *FormulatorNodeMesh) SendTo(ID string, m interface{}) error {
 		return ErrNotExistObserverPeer
 	}
 
-	if err := p.Send(m); err != nil {
-		rlog.Println(err)
-		ms.RemovePeer(p.ID())
-	}
+	p.SendPacket(p2p.MessageToPacket(m))
 	return nil
-}
-
-// BroadcastRaw sends a message to all peers
-func (ms *FormulatorNodeMesh) BroadcastRaw(bs []byte) {
-	peerMap := map[string]peer.Peer{}
-	ms.Lock()
-	for _, p := range ms.peerMap {
-		peerMap[p.ID()] = p
-	}
-	ms.Unlock()
-
-	for _, p := range peerMap {
-		p.SendRaw(bs)
-	}
 }
 
 // BroadcastMessage sends a message to all peers
-func (ms *FormulatorNodeMesh) BroadcastMessage(m interface{}) error {
-	var buffer bytes.Buffer
-	fc := encoding.Factory("message")
-	t, err := fc.TypeOf(m)
-	if err != nil {
-		return err
-	}
-	buffer.Write(util.Uint16ToBytes(t))
-	enc := encoding.NewEncoder(&buffer)
-	if err := enc.Encode(m); err != nil {
-		return err
-	}
-	data := buffer.Bytes()
+func (ms *FormulatorNodeMesh) BroadcastMessage(m interface{}) {
+	ms.BroadcastPacket(p2p.MessageToPacket(m))
+}
 
+// BroadcastPacket sends a packet to all peers
+func (ms *FormulatorNodeMesh) BroadcastPacket(bs []byte) {
 	peerMap := map[string]peer.Peer{}
 	ms.Lock()
 	for _, p := range ms.peerMap {
@@ -137,9 +109,8 @@ func (ms *FormulatorNodeMesh) BroadcastMessage(m interface{}) error {
 	ms.Unlock()
 
 	for _, p := range peerMap {
-		p.SendRaw(data)
+		p.SendPacket(bs)
 	}
-	return nil
 }
 
 func (ms *FormulatorNodeMesh) client(Address string, TargetPubHash common.PublicHash) error {
@@ -188,11 +159,11 @@ func (ms *FormulatorNodeMesh) handleConnection(p peer.Peer) error {
 	defer ms.fr.OnObserverDisconnected(p)
 
 	for {
-		m, _, err := p.ReadMessageData()
+		t, compressed, bs, err := p.ReadPacket()
 		if err != nil {
 			return err
 		}
-		if err := ms.fr.onRecv(p, m); err != nil {
+		if err := ms.fr.onRecv(p, t, compressed, bs); err != nil {
 			return err
 		}
 	}
