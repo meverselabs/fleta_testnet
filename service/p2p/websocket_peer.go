@@ -1,9 +1,6 @@
 package p2p
 
 import (
-	"bytes"
-	"compress/gzip"
-	"encoding/binary"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -49,10 +46,7 @@ func NewWebsocketPeer(conn *websocket.Conn, ID string, Name string, connectedTim
 
 		pingCountLimit := uint64(3)
 		pingTicker := time.NewTicker(10 * time.Second)
-		for {
-			if p.isClose {
-				return
-			}
+		for !p.isClose {
 			select {
 			case <-pingTicker.C:
 				if err := p.conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
@@ -67,22 +61,10 @@ func NewWebsocketPeer(conn *websocket.Conn, ID string, Name string, connectedTim
 					time.Sleep(50 * time.Millisecond)
 					continue
 				}
-				bs := v.([]byte)
-				var buffer bytes.Buffer
-				buffer.Write(bs[:2])
-				buffer.Write(make([]byte, 4))
-				if len(bs) > 2 {
-					zw := gzip.NewWriter(&buffer)
-					zw.Write(bs[2:])
-					zw.Flush()
-					zw.Close()
-				}
-				wbs := buffer.Bytes()
-				binary.LittleEndian.PutUint32(wbs[2:], uint32(len(wbs)-6))
 				if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
 					return
 				}
-				if err := p.conn.WriteMessage(websocket.BinaryMessage, wbs); err != nil {
+				if err := p.conn.WriteMessage(websocket.BinaryMessage, v.([]byte)); err != nil {
 					return
 				}
 			}

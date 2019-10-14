@@ -1,9 +1,6 @@
 package p2p
 
 import (
-	"bytes"
-	"compress/gzip"
-	"encoding/binary"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -47,7 +44,7 @@ func NewTCPPeer(conn net.Conn, ID string, Name string, connectedTime int64) *TCP
 
 		pingCountLimit := uint64(3)
 		pingTicker := time.NewTicker(10 * time.Second)
-		for {
+		for !p.isClose {
 			select {
 			case <-pingTicker.C:
 				if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
@@ -61,30 +58,15 @@ func NewTCPPeer(conn net.Conn, ID string, Name string, connectedTime int64) *TCP
 					return
 				}
 			default:
-				if p.isClose {
-					return
-				}
 				v := p.writeQueue.Pop()
 				if v == nil {
 					time.Sleep(50 * time.Millisecond)
 					continue
 				}
-				bs := v.([]byte)
-				var buffer bytes.Buffer
-				buffer.Write(bs[:2])
-				buffer.Write(make([]byte, 4))
-				if len(bs) > 2 {
-					zw := gzip.NewWriter(&buffer)
-					zw.Write(bs[2:])
-					zw.Flush()
-					zw.Close()
-				}
-				wbs := buffer.Bytes()
-				binary.LittleEndian.PutUint32(wbs[2:], uint32(len(wbs)-6))
 				if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
 					return
 				}
-				_, err := p.conn.Write(wbs)
+				_, err := p.conn.Write(v.([]byte))
 				if err != nil {
 					return
 				}
