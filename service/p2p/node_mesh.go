@@ -20,7 +20,7 @@ import (
 type Handler interface {
 	OnConnected(p peer.Peer)
 	OnDisconnected(p peer.Peer)
-	OnRecv(p peer.Peer, m interface{}) error
+	OnRecv(p peer.Peer, t uint16, compressed bool, bs []byte) error
 }
 
 // NodeMesh is a mesh for networking between nodes
@@ -174,20 +174,12 @@ func (ms *NodeMesh) SendTo(pubhash common.PublicHash, m interface{}) error {
 		return ErrNotExistPeer
 	}
 
-	if err := p.Send(m); err != nil {
-		rlog.Println(err)
-		ms.RemovePeer(p.ID())
-	}
+	p.SendPacket(MessageToPacket(m))
 	return nil
 }
 
 // ExceptCastLimit sends a message within the given number except the peer
 func (ms *NodeMesh) ExceptCastLimit(ID string, m interface{}, Limit int) error {
-	data, err := MessageToBytes(m)
-	if err != nil {
-		return err
-	}
-
 	peerMap := map[string]peer.Peer{}
 	ms.Lock()
 	for _, p := range ms.clientPeerMap {
@@ -208,10 +200,16 @@ func (ms *NodeMesh) ExceptCastLimit(ID string, m interface{}, Limit int) error {
 	}
 	ms.Unlock()
 
+	bs := MessageToPacket(m)
 	for _, p := range peerMap {
-		p.SendRaw(data)
+		p.SendPacket(bs)
 	}
 	return nil
+}
+
+// BroadcastMessage sends a message to all peers
+func (ms *NodeMesh) BroadcastMessage(m interface{}) {
+	ms.BroadcastRaw(MessageToPacket(m))
 }
 
 // BroadcastRaw sends a message to all peers
@@ -227,31 +225,8 @@ func (ms *NodeMesh) BroadcastRaw(bs []byte) {
 	ms.Unlock()
 
 	for _, p := range peerMap {
-		p.SendRaw(bs)
+		p.SendPacket(bs)
 	}
-}
-
-// BroadcastMessage sends a message to all peers
-func (ms *NodeMesh) BroadcastMessage(m interface{}) error {
-	data, err := MessageToBytes(m)
-	if err != nil {
-		return err
-	}
-
-	peerMap := map[string]peer.Peer{}
-	ms.Lock()
-	for _, p := range ms.clientPeerMap {
-		peerMap[p.ID()] = p
-	}
-	for _, p := range ms.serverPeerMap {
-		peerMap[p.ID()] = p
-	}
-	ms.Unlock()
-
-	for _, p := range peerMap {
-		p.SendRaw(data)
-	}
-	return nil
 }
 
 func (ms *NodeMesh) RequestConnect(Address string, TargetPubHash common.PublicHash) {
@@ -388,11 +363,11 @@ func (ms *NodeMesh) handleConnection(p peer.Peer) error {
 	defer ms.handler.OnDisconnected(p)
 
 	for {
-		m, _, err := p.ReadMessageData()
+		t, compressed, bs, err := p.ReadPacket()
 		if err != nil {
 			return err
 		}
-		if err := ms.handler.OnRecv(p, m); err != nil {
+		if err := ms.handler.OnRecv(p, t, compressed, bs); err != nil {
 			return err
 		}
 	}

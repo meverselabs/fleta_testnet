@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/binary"
-	"io/ioutil"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -13,7 +12,6 @@ import (
 	"github.com/fletaio/fleta/common/queue"
 	"github.com/fletaio/fleta/common/util"
 	"github.com/fletaio/fleta/core/types"
-	"github.com/fletaio/fleta/encoding"
 )
 
 // TCPPeer manages send and recv of the connection
@@ -112,15 +110,18 @@ func (p *TCPPeer) Close() {
 	p.conn.Close()
 }
 
-// ReadMessageData returns a message data
-func (p *TCPPeer) ReadMessageData() (interface{}, []byte, error) {
+// ReadPacket returns a packet data
+func (p *TCPPeer) ReadPacket() (uint16, bool, []byte, error) {
+	r := NewCopyReader(p.conn)
+
 	var t uint16
 	for {
-		if v, _, err := ReadUint16(p.conn); err != nil {
-			return nil, nil, err
+		if v, _, err := ReadUint16(r); err != nil {
+			return 0, false, nil, err
 		} else {
 			atomic.StoreUint64(&p.pingCount, 0)
 			if v == p.pingType {
+				r.Reset()
 				continue
 			} else {
 				t = v
@@ -129,49 +130,23 @@ func (p *TCPPeer) ReadMessageData() (interface{}, []byte, error) {
 		}
 	}
 
-	if Len, _, err := ReadUint32(p.conn); err != nil {
-		return nil, nil, err
+	if cp, _, err := ReadUint8(r); err != nil {
+		return 0, false, nil, err
+	} else if Len, _, err := ReadUint32(r); err != nil {
+		return 0, false, nil, err
 	} else if Len == 0 {
-		return nil, nil, ErrUnknownMessage
+		return 0, false, nil, ErrUnknownMessage
 	} else {
 		zbs := make([]byte, Len)
-		if _, err := FillBytes(p.conn, zbs); err != nil {
-			return nil, nil, err
+		if _, err := FillBytes(r, zbs); err != nil {
+			return 0, false, nil, err
 		}
-		zr, err := gzip.NewReader(bytes.NewReader(zbs))
-		if err != nil {
-			return nil, nil, err
-		}
-		defer zr.Close()
-
-		fc := encoding.Factory("message")
-		m, err := fc.Create(t)
-		if err != nil {
-			return nil, nil, err
-		}
-		bs, err := ioutil.ReadAll(zr)
-		if err != nil {
-			return nil, nil, err
-		}
-		if err := encoding.Unmarshal(bs, &m); err != nil {
-			return nil, nil, err
-		}
-		return m, bs, nil
+		return t, cp == 1, r.Bytes(), nil
 	}
 }
 
-// Send sends a message to the TCPPeer
-func (p *TCPPeer) Send(m interface{}) error {
-	data, err := MessageToBytes(m)
-	if err != nil {
-		return err
-	}
-	p.SendRaw(data)
-	return nil
-}
-
-// SendRaw sends bytes to the TCPPeer
-func (p *TCPPeer) SendRaw(bs []byte) {
+// SendPacket sends packet to the WebsocketPeer
+func (p *TCPPeer) SendPacket(bs []byte) {
 	p.writeQueue.Push(bs)
 }
 

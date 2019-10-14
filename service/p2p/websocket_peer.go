@@ -4,14 +4,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/binary"
-	"io/ioutil"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/fletaio/fleta/common/queue"
 	"github.com/fletaio/fleta/common/util"
-	"github.com/fletaio/fleta/encoding"
 	"github.com/gorilla/websocket"
 )
 
@@ -109,58 +107,30 @@ func (p *WebsocketPeer) Close() {
 	p.conn.Close()
 }
 
-// ReadMessageData returns a message data
-func (p *WebsocketPeer) ReadMessageData() (interface{}, []byte, error) {
-	_, bs, err := p.conn.ReadMessage()
+// ReadPacket returns a packet data
+func (p *WebsocketPeer) ReadPacket() (uint16, bool, []byte, error) {
+	_, rb, err := p.conn.ReadMessage()
 	if err != nil {
-		return nil, nil, err
+		return 0, false, nil, err
 	}
-	if len(bs) < 6 {
-		return nil, nil, ErrInvalidLength
+	if len(rb) < 7 {
+		return 0, false, nil, ErrInvalidLength
 	}
 
-	t := util.BytesToUint16(bs)
-	Len := util.BytesToUint32(bs[2:])
+	t := util.BytesToUint16(rb)
+	cps := rb[2:3]
+	Len := util.BytesToUint32(rb[3:])
 	if Len == 0 {
-		return nil, nil, ErrUnknownMessage
-	} else if len(bs) != 6+int(Len) {
-		return nil, nil, ErrInvalidLength
+		return 0, false, nil, ErrUnknownMessage
+	} else if len(rb) != 7+int(Len) {
+		return 0, false, nil, ErrInvalidLength
 	} else {
-		zbs := bs[6:]
-		zr, err := gzip.NewReader(bytes.NewReader(zbs))
-		if err != nil {
-			return nil, nil, err
-		}
-		defer zr.Close()
-
-		fc := encoding.Factory("message")
-		m, err := fc.Create(t)
-		if err != nil {
-			return nil, nil, err
-		}
-		bs, err := ioutil.ReadAll(zr)
-		if err != nil {
-			return nil, nil, err
-		}
-		if err := encoding.Unmarshal(bs, &m); err != nil {
-			return nil, nil, err
-		}
-		return m, bs, nil
+		return t, cps[0] == 1, rb, nil
 	}
 }
 
-// Send sends a message to the WebsocketPeer
-func (p *WebsocketPeer) Send(m interface{}) error {
-	data, err := MessageToBytes(m)
-	if err != nil {
-		return err
-	}
-	p.SendRaw(data)
-	return nil
-}
-
-// SendRaw sends bytes to the WebsocketPeer
-func (p *WebsocketPeer) SendRaw(bs []byte) {
+// SendPacket sends packet to the WebsocketPeer
+func (p *WebsocketPeer) SendPacket(bs []byte) {
 	p.writeQueue.Push(bs)
 }
 

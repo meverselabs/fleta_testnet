@@ -1,6 +1,9 @@
 package p2p
 
 import (
+	"bytes"
+	"compress/gzip"
+	"io/ioutil"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -213,9 +216,35 @@ func (nd *Node) OnDisconnected(p peer.Peer) {
 }
 
 // OnRecv called when message received
-func (nd *Node) OnRecv(p peer.Peer, m interface{}) error {
+func (nd *Node) OnRecv(p peer.Peer, t uint16, compressed bool, bs []byte) error {
 	var SenderPublicHash common.PublicHash
 	copy(SenderPublicHash[:], []byte(p.ID()))
+
+	var mbs []byte
+	if compressed {
+		zr, err := gzip.NewReader(bytes.NewReader(bs))
+		if err != nil {
+			return err
+		}
+		defer zr.Close()
+
+		v, err := ioutil.ReadAll(zr)
+		if err != nil {
+			return err
+		}
+		mbs = v
+	} else {
+		mbs = bs
+	}
+
+	fc := encoding.Factory("message")
+	m, err := fc.Create(t)
+	if err != nil {
+		return err
+	}
+	if err := encoding.Unmarshal(mbs, &m); err != nil {
+		return err
+	}
 
 	switch msg := m.(type) {
 	case *RequestMessage:

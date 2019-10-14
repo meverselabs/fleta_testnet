@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/binary"
 	"io"
 
@@ -141,18 +142,33 @@ func FillBytes(r io.Reader, bs []byte) (int64, error) {
 	return int64(read), nil
 }
 
-// MessageToBytes returns bytes to the message
-func MessageToBytes(m interface{}) ([]byte, error) {
-	var buffer bytes.Buffer
+// MessageToPacket returns packet of the message
+func MessageToPacket(m interface{}) []byte {
 	fc := encoding.Factory("message")
 	t, err := fc.TypeOf(m)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
+	var buffer bytes.Buffer
 	buffer.Write(util.Uint16ToBytes(t))
-	enc := encoding.NewEncoder(&buffer)
-	if err := enc.Encode(m); err != nil {
-		return nil, err
+	buffer.Write(make([]byte, 4))
+	if _, is := m.(*BlockMessage); is {
+		buffer.Write([]byte{1})
+		zw := gzip.NewWriter(&buffer)
+		enc := encoding.NewEncoder(zw)
+		if err := enc.Encode(m); err != nil {
+			panic(err)
+		}
+		zw.Flush()
+		zw.Close()
+	} else {
+		buffer.Write([]byte{0})
+		enc := encoding.NewEncoder(&buffer)
+		if err := enc.Encode(m); err != nil {
+			panic(err)
+		}
 	}
-	return buffer.Bytes(), nil
+	bs := buffer.Bytes()
+	binary.LittleEndian.PutUint32(bs[3:], uint32(len(bs)-7))
+	return bs
 }
