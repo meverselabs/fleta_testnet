@@ -7,6 +7,41 @@ import (
 	"github.com/fletaio/fleta/service/p2p"
 )
 
+func (fr *FormulatorNode) sendMessage(Priority int, Target common.PublicHash, m interface{}) {
+	fr.sendQueues[Priority].Push(&p2p.SendMessageItem{
+		Target:  Target,
+		Message: m,
+	})
+}
+
+func (fr *FormulatorNode) sendMessagePacket(Priority int, Target common.PublicHash, raw []byte) {
+	fr.sendQueues[Priority].Push(&p2p.SendMessageItem{
+		Target: Target,
+		Packet: raw,
+	})
+}
+
+func (fr *FormulatorNode) broadcastMessage(Priority int, m interface{}) {
+	fr.sendQueues[Priority].Push(&p2p.SendMessageItem{
+		Message: m,
+	})
+}
+
+func (fr *FormulatorNode) limitCastMessage(Priority int, m interface{}) {
+	fr.sendQueues[Priority].Push(&p2p.SendMessageItem{
+		Message: m,
+		Limit:   3,
+	})
+}
+
+func (fr *FormulatorNode) exceptLimitCastMessage(Priority int, Target common.PublicHash, m interface{}) {
+	fr.sendQueues[Priority].Push(&p2p.SendMessageItem{
+		Target:  Target,
+		Message: m,
+		Limit:   3,
+	})
+}
+
 func (fr *FormulatorNode) broadcastStatus() error {
 	cp := fr.cs.cn.Provider()
 	height, lastHash, _ := cp.LastStatus()
@@ -16,7 +51,7 @@ func (fr *FormulatorNode) broadcastStatus() error {
 		LastHash: lastHash,
 	}
 	fr.ms.BroadcastMessage(nm)
-	fr.nm.BroadcastMessage(nm)
+	fr.broadcastMessage(0, nm)
 	return nil
 }
 
@@ -41,7 +76,7 @@ func (fr *FormulatorNode) sendRequestBlockToNode(TargetPubHash common.PublicHash
 		Height: Height,
 		Count:  Count,
 	}
-	fr.nm.SendTo(TargetPubHash, p2p.MessageToPacket(nm))
+	fr.sendMessage(0, TargetPubHash, p2p.MessageToPacket(nm))
 	for i := uint32(0); i < uint32(Count); i++ {
 		fr.requestNodeTimer.Add(Height+i, 10*time.Second, string(TargetPubHash[:]))
 	}
