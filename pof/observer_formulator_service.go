@@ -2,12 +2,12 @@ package pof
 
 import (
 	crand "crypto/rand"
-	"encoding/binary"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/fletaio/fleta/common"
+	"github.com/fletaio/fleta/common/binutil"
 	"github.com/fletaio/fleta/common/debug"
 	"github.com/fletaio/fleta/common/hash"
 	"github.com/fletaio/fleta/common/key"
@@ -95,38 +95,6 @@ func (ms *FormulatorService) BroadcastMessage(m interface{}) error {
 	return nil
 }
 
-// GuessHeightCountMap returns a number of the guess height from all peers
-func (ms *FormulatorService) GuessHeightCountMap() map[uint32]int {
-	CountMap := map[uint32]int{}
-	ms.Lock()
-	for _, p := range ms.peerMap {
-		CountMap[p.GuessHeight()]++
-	}
-	ms.Unlock()
-	return CountMap
-}
-
-// GuessHeight returns the guess height of the fomrulator
-func (ms *FormulatorService) GuessHeight(addr common.Address) (uint32, error) {
-	ms.Lock()
-	p, has := ms.peerMap[string(addr[:])]
-	ms.Unlock()
-	if !has {
-		return 0, ErrNotExistFormulatorPeer
-	}
-	return p.GuessHeight(), nil
-}
-
-// UpdateGuessHeight updates the guess height of the fomrulator
-func (ms *FormulatorService) UpdateGuessHeight(addr common.Address, height uint32) {
-	ms.Lock()
-	p, has := ms.peerMap[string(addr[:])]
-	ms.Unlock()
-	if has {
-		p.UpdateGuessHeight(height)
-	}
-}
-
 func (ms *FormulatorService) server(BindAddress string) error {
 	if debug.DEBUG {
 		rlog.Println("FormulatorService", common.NewPublicHash(ms.key.PublicKey()), "Start to Listen", BindAddress)
@@ -182,20 +150,15 @@ func (ms *FormulatorService) handleConnection(p peer.Peer) error {
 		rlog.Println("Observer", common.NewPublicHash(ms.key.PublicKey()).String(), "Fromulator Connected", p.Name())
 	}
 
-	cp := ms.ob.cs.cn.Provider()
-	height, lastHash, _ := cp.LastStatus()
-	p.SendPacket(p2p.MessageToPacket(&p2p.StatusMessage{
-		Version:  cp.Version(),
-		Height:   height,
-		LastHash: lastHash,
-	}))
+	ms.ob.OnFormulatorConnected(p)
+	defer ms.ob.OnFormulatorDisconnected(p)
 
 	for {
-		t, compressed, bs, err := p.ReadPacket()
+		bs, err := p.ReadPacket()
 		if err != nil {
 			return err
 		}
-		if err := ms.ob.onFormulatorRecv(p, t, compressed, bs); err != nil {
+		if err := ms.ob.onFormulatorRecv(p, bs); err != nil {
 			return err
 		}
 	}
@@ -214,7 +177,7 @@ func (ms *FormulatorService) recvHandshake(conn *websocket.Conn) (common.Address
 	if ChainID != ms.ob.cs.cn.Provider().ChainID() {
 		return common.Address{}, chain.ErrInvalidChainID
 	}
-	timestamp := binary.LittleEndian.Uint64(req[32:])
+	timestamp := binutil.LittleEndian.Uint64(req[32:])
 	var Formulator common.Address
 	copy(Formulator[:], req[40:])
 	diff := time.Duration(uint64(time.Now().UnixNano()) - timestamp)
@@ -240,7 +203,7 @@ func (ms *FormulatorService) sendHandshake(conn *websocket.Conn) (common.PublicH
 		return common.PublicHash{}, err
 	}
 	req[0] = ms.ob.cs.cn.Provider().ChainID()
-	binary.LittleEndian.PutUint64(req[32:], uint64(time.Now().UnixNano()))
+	binutil.LittleEndian.PutUint64(req[32:], uint64(time.Now().UnixNano()))
 	if err := conn.WriteMessage(websocket.BinaryMessage, req); err != nil {
 		return common.PublicHash{}, err
 	}

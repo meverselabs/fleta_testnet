@@ -2,8 +2,6 @@ package pof
 
 import (
 	"bytes"
-	"compress/gzip"
-	"io/ioutil"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -163,7 +161,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					rlog.Println("TransactionAppended", chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String())
 					(*item.ErrCh) <- nil
 
-					fr.nm.ExceptCastLimit(item.PeerID, item.Message, 7)
+					fr.nm.ExceptCastLimit(item.PeerID, p2p.MessageToPacket(item.Message), 7)
 				case <-(*pEndCh):
 					return
 				}
@@ -225,11 +223,11 @@ func (fr *FormulatorNode) AddTx(tx types.Transaction, sigs []common.Signature) e
 	if err := fr.addTx(t, tx, sigs); err != nil {
 		return err
 	}
-	fr.nm.ExceptCastLimit("", &p2p.TransactionMessage{
+	fr.nm.ExceptCastLimit("", p2p.MessageToPacket(&p2p.TransactionMessage{
 		TxType: t,
 		Tx:     tx,
 		Sigs:   sigs,
-	}, 7)
+	}), 7)
 	return nil
 }
 
@@ -288,7 +286,7 @@ func (fr *FormulatorNode) OnTimerExpired(height uint32, value string) {
 // OnItemExpired is called when the item is expired
 func (fr *FormulatorNode) OnItemExpired(Interval time.Duration, Key string, Item interface{}, IsLast bool) {
 	msg := Item.(*p2p.TransactionMessage)
-	fr.nm.ExceptCastLimit("", msg, 7)
+	fr.nm.ExceptCastLimit("", p2p.MessageToPacket(msg), 7)
 	if IsLast {
 		var TxHash hash.Hash256
 		copy(TxHash[:], []byte(Key))
@@ -338,38 +336,29 @@ func (fr *FormulatorNode) OnDisconnected(p peer.Peer) {
 }
 
 // OnRecv called when message received
-func (fr *FormulatorNode) OnRecv(p peer.Peer, t uint16, compressed bool, bs []byte) error {
+func (fr *FormulatorNode) OnRecv(p peer.Peer, bs []byte) error {
 	var SenderPublicHash common.PublicHash
 	copy(SenderPublicHash[:], []byte(p.ID()))
 
-	var mbs []byte
-	if compressed {
-		zr, err := gzip.NewReader(bytes.NewReader(bs))
-		if err != nil {
-			return err
-		}
-		defer zr.Close()
-
-		v, err := ioutil.ReadAll(zr)
-		if err != nil {
-			return err
-		}
-		mbs = v
-	} else {
-		mbs = bs
-	}
-
-	fc := encoding.Factory("message")
-	m, err := fc.Create(t)
+	m, err := p2p.PacketToMessage(bs)
 	if err != nil {
-		return err
-	}
-	if err := encoding.Unmarshal(mbs, &m); err != nil {
 		return err
 	}
 
 	switch msg := m.(type) {
 	case *p2p.RequestMessage:
+		fr.statusLock.Lock()
+		status, has := fr.statusMap[p.ID()]
+		fr.statusLock.Unlock()
+		if has {
+			if msg.Height < status.Height {
+				if msg.Height+uint32(msg.Count) <= status.Height {
+					return nil
+				}
+				msg.Height = status.Height
+			}
+		}
+
 		if msg.Count == 0 {
 			msg.Count = 1
 		}
@@ -395,16 +384,14 @@ func (fr *FormulatorNode) OnRecv(p peer.Peer, t uint16, compressed bool, bs []by
 		sm := &p2p.BlockMessage{
 			Blocks: list,
 		}
-		if err := fr.nm.SendTo(SenderPublicHash, sm); err != nil {
+		if err := fr.nm.SendTo(SenderPublicHash, p2p.MessageToPacket(sm)); err != nil {
 			return err
 		}
 	case *p2p.StatusMessage:
 		fr.statusLock.Lock()
 		if status, has := fr.statusMap[p.ID()]; has {
 			if status.Height < msg.Height {
-				status.Version = msg.Version
 				status.Height = msg.Height
-				status.LastHash = msg.LastHash
 			}
 		}
 		fr.statusLock.Unlock()
@@ -542,41 +529,19 @@ func (fr *FormulatorNode) tryRequestBlocks() {
 	}
 }
 
-func (fr *FormulatorNode) onRecv(p peer.Peer, t uint16, compressed bool, bs []byte) error {
-	var mbs []byte
-	if compressed {
-		zr, err := gzip.NewReader(bytes.NewReader(bs))
-		if err != nil {
-			return err
-		}
-		defer zr.Close()
-
-		v, err := ioutil.ReadAll(zr)
-		if err != nil {
-			return err
-		}
-		mbs = v
-	} else {
-		mbs = bs
-	}
-
-	fc := encoding.Factory("message")
-	m, err := fc.Create(t)
+func (fr *FormulatorNode) onObserverRecv(p peer.Peer, bs []byte) error {
+	m, err := p2p.PacketToMessage(bs)
 	if err != nil {
 		return err
 	}
-	if err := encoding.Unmarshal(mbs, &m); err != nil {
-		return err
-	}
-
-	if err := fr.handleMessage(p, m, 0); err != nil {
+	if err := fr.handleObserverMessage(p, m, 0); err != nil {
 		//rlog.Println(err)
 		return nil
 	}
 	return nil
 }
 
-func (fr *FormulatorNode) handleMessage(p peer.Peer, m interface{}, RetryCount int) error {
+func (fr *FormulatorNode) handleObserverMessage(p peer.Peer, m interface{}, RetryCount int) error {
 	cp := fr.cs.cn.Provider()
 
 	switch msg := m.(type) {
@@ -617,7 +582,7 @@ func (fr *FormulatorNode) handleMessage(p peer.Peer, m interface{}, RetryCount i
 			}
 			go func() {
 				time.Sleep(50 * time.Millisecond)
-				fr.handleMessage(p, m, RetryCount+1)
+				fr.handleObserverMessage(p, m, RetryCount+1)
 			}()
 			return nil
 		}
@@ -732,35 +697,6 @@ func (fr *FormulatorNode) handleMessage(p peer.Peer, m interface{}, RetryCount i
 			}
 		}
 		return nil
-	case *p2p.RequestMessage:
-		if msg.Count == 0 {
-			msg.Count = 1
-		}
-		if msg.Count > 10 {
-			msg.Count = 10
-		}
-		Height := cp.Height()
-		if msg.Height > Height {
-			return nil
-		}
-		list := make([]*types.Block, 0, 10)
-		for i := uint32(0); i < uint32(msg.Count); i++ {
-			if msg.Height+i > Height {
-				break
-			}
-			b, err := cp.Block(msg.Height + i)
-			if err != nil {
-				return err
-			}
-			list = append(list, b)
-		}
-		sm := &p2p.BlockMessage{
-			Blocks: list,
-		}
-		if err := fr.ms.SendTo(p.ID(), sm); err != nil {
-			return err
-		}
-		return nil
 	case *p2p.BlockMessage:
 		for _, b := range msg.Blocks {
 			if err := fr.addBlock(b); err != nil {
@@ -788,9 +724,7 @@ func (fr *FormulatorNode) handleMessage(p peer.Peer, m interface{}, RetryCount i
 		fr.statusLock.Lock()
 		if status, has := fr.obStatusMap[p.ID()]; has {
 			if status.Height < msg.Height {
-				status.Version = msg.Version
 				status.Height = msg.Height
-				status.LastHash = msg.LastHash
 			}
 		}
 		fr.statusLock.Unlock()

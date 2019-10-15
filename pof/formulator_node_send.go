@@ -41,7 +41,7 @@ func (fr *FormulatorNode) sendRequestBlockToNode(TargetPubHash common.PublicHash
 		Height: Height,
 		Count:  Count,
 	}
-	fr.nm.SendTo(TargetPubHash, nm)
+	fr.nm.SendTo(TargetPubHash, p2p.MessageToPacket(nm))
 	for i := uint32(0); i < uint32(Count); i++ {
 		fr.requestNodeTimer.Add(Height+i, 10*time.Second, string(TargetPubHash[:]))
 	}

@@ -9,6 +9,17 @@ import (
 	"github.com/fletaio/fleta/encoding"
 )
 
+// message types
+var (
+	PingMessageType            = types.DefineHashedType("p2p.PingMessage")
+	StatusMessageType          = types.DefineHashedType("p2p.StatusMessage")
+	RequestMessageType         = types.DefineHashedType("p2p.RequestMessage")
+	BlockMessageType           = types.DefineHashedType("p2p.BlockMessage")
+	TransactionMessageType     = types.DefineHashedType("p2p.TransactionMessage")
+	PeerListMessageType        = types.DefineHashedType("p2p.PeerListMessage")
+	RequestPeerListMessageType = types.DefineHashedType("p2p.RequestPeerListMessage")
+)
+
 func init() {
 	fc := encoding.Factory("transaction")
 	encoding.Register(TransactionMessage{}, func(enc *encoding.Encoder, rv reflect.Value) error {

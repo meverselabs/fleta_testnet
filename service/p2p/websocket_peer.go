@@ -4,7 +4,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fletaio/fleta/common/util"
 	"github.com/gorilla/websocket"
 )
 
@@ -39,17 +38,14 @@ func NewWebsocketPeer(conn *websocket.Conn, ID string, Name string, connectedTim
 		defer p.Close()
 
 		pingCountLimit := uint64(3)
-		pingTicker := time.NewTicker(10 * time.Second)
 		for !p.isClose {
-			select {
-			case <-pingTicker.C:
-				if err := p.conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
-					return
-				}
-				if atomic.AddUint64(&p.pingCount, 1) > pingCountLimit {
-					return
-				}
+			if err := p.conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
+				return
 			}
+			if atomic.AddUint64(&p.pingCount, 1) > pingCountLimit {
+				return
+			}
+			time.Sleep(10 * time.Second)
 		}
 	}()
 	return p
@@ -71,34 +67,28 @@ func (p *WebsocketPeer) Close() {
 	p.conn.Close()
 }
 
+// IsClosed returns it is closed or not
+func (p *WebsocketPeer) IsClosed() bool {
+	return p.isClose
+}
+
 // ReadPacket returns a packet data
-func (p *WebsocketPeer) ReadPacket() (uint16, bool, []byte, error) {
+func (p *WebsocketPeer) ReadPacket() ([]byte, error) {
 	_, rb, err := p.conn.ReadMessage()
 	if err != nil {
-		return 0, false, nil, err
+		return nil, err
 	}
-	if len(rb) < 7 {
-		return 0, false, nil, ErrInvalidLength
-	}
-
-	t := util.BytesToUint16(rb)
-	cps := rb[2:3]
-	Len := util.BytesToUint32(rb[3:])
-	if Len == 0 {
-		return 0, false, nil, ErrUnknownMessage
-	} else if len(rb) != 7+int(Len) {
-		return 0, false, nil, ErrInvalidLength
-	} else {
-		return t, cps[0] == 1, rb, nil
-	}
+	return rb, nil
 }
 
 // SendPacket sends packet to the WebsocketPeer
 func (p *WebsocketPeer) SendPacket(bs []byte) {
 	if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		p.Close()
 		return
 	}
 	if err := p.conn.WriteMessage(websocket.BinaryMessage, bs); err != nil {
+		p.Close()
 		return
 	}
 }

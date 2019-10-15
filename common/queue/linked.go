@@ -22,10 +22,22 @@ func NewLinkedQueue() *LinkedQueue {
 	return q
 }
 
-// Push inserts the item with the key at the bottom of the queue
-func (q *LinkedQueue) Push(Key hash.Hash256, item interface{}) {
+// Size returns the number of items
+func (q *LinkedQueue) Size() int {
 	q.Lock()
 	defer q.Unlock()
+
+	return len(q.keyMap)
+}
+
+// Push inserts the item with the key at the bottom of the queue
+func (q *LinkedQueue) Push(Key hash.Hash256, item interface{}) bool {
+	q.Lock()
+	defer q.Unlock()
+
+	if _, has := q.keyMap[Key]; has {
+		return false
+	}
 
 	nd := &linkedItem{
 		Key:  Key,
@@ -40,6 +52,7 @@ func (q *LinkedQueue) Push(Key hash.Hash256, item interface{}) {
 		q.Tail = nd
 	}
 	q.keyMap[Key] = nd
+	return true
 }
 
 // Pop returns a item at the top of the queue

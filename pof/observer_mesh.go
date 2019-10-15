@@ -2,12 +2,12 @@ package pof
 
 import (
 	crand "crypto/rand"
-	"encoding/binary"
 	"net"
 	"sync"
 	"time"
 
 	"github.com/fletaio/fleta/common"
+	"github.com/fletaio/fleta/common/binutil"
 	"github.com/fletaio/fleta/common/debug"
 	"github.com/fletaio/fleta/common/hash"
 	"github.com/fletaio/fleta/common/key"
@@ -285,11 +285,11 @@ func (ms *ObserverNodeMesh) handleConnection(p peer.Peer) error {
 	}
 
 	for {
-		t, compressed, bs, err := p.ReadPacket()
+		bs, err := p.ReadPacket()
 		if err != nil {
 			return err
 		}
-		if err := ms.ob.onObserverRecv(p, t, compressed, bs); err != nil {
+		if err := ms.ob.onObserverRecv(p, bs); err != nil {
 			return err
 		}
 	}
@@ -305,7 +305,7 @@ func (ms *ObserverNodeMesh) recvHandshake(conn net.Conn) error {
 	if ChainID != ms.ob.cs.cn.Provider().ChainID() {
 		return chain.ErrInvalidChainID
 	}
-	timestamp := binary.LittleEndian.Uint64(req[32:])
+	timestamp := binutil.LittleEndian.Uint64(req[32:])
 	diff := time.Duration(uint64(time.Now().UnixNano()) - timestamp)
 	if diff < 0 {
 		diff = -diff
@@ -329,7 +329,7 @@ func (ms *ObserverNodeMesh) sendHandshake(conn net.Conn) (common.PublicHash, err
 		return common.PublicHash{}, err
 	}
 	req[0] = ms.ob.cs.cn.Provider().ChainID()
-	binary.LittleEndian.PutUint64(req[32:], uint64(time.Now().UnixNano()))
+	binutil.LittleEndian.PutUint64(req[32:], uint64(time.Now().UnixNano()))
 	if _, err := conn.Write(req); err != nil {
 		return common.PublicHash{}, err
 	}

@@ -6,8 +6,8 @@ import (
 	"strconv"
 
 	"github.com/fletaio/fleta/common"
+	"github.com/fletaio/fleta/common/binutil"
 	"github.com/fletaio/fleta/common/hash"
-	"github.com/fletaio/fleta/common/util"
 	"github.com/fletaio/fleta/encoding"
 )
 
@@ -409,9 +409,9 @@ func (ctd *ContextData) Hash() hash.Hash256 {
 	buffer.WriteString("ChainName")
 	buffer.WriteString(ctd.loader.Name())
 	buffer.WriteString("ChainVersion")
-	buffer.Write(util.Uint16ToBytes(ctd.loader.Version()))
+	buffer.Write(binutil.LittleEndian.Uint16ToBytes(ctd.loader.Version()))
 	buffer.WriteString("Height")
-	buffer.Write(util.Uint32ToBytes(ctd.loader.TargetHeight()))
+	buffer.Write(binutil.LittleEndian.Uint32ToBytes(ctd.loader.TargetHeight()))
 	buffer.WriteString("PrevHash")
 	lastHash := ctd.loader.LastHash()
 	buffer.Write(lastHash[:])
@@ -439,7 +439,7 @@ func (ctd *ContextData) Hash() hash.Hash256 {
 	buffer.WriteString(encoding.Hash(ctd.CreatedUTXOMap).String())
 	buffer.WriteString("DeletedUTXOMap")
 	ctd.DeletedUTXOMap.EachAll(func(key uint64, utxo *UTXO) bool {
-		buffer.Write(util.Uint64ToBytes(key))
+		buffer.Write(binutil.LittleEndian.Uint64ToBytes(key))
 		return true
 	})
 	buffer.WriteString("Events")

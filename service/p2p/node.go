@@ -2,14 +2,11 @@ package p2p
 
 import (
 	"bytes"
-	"compress/gzip"
-	"io/ioutil"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
 
-	"github.com/fletaio/fleta/service/p2p/peer"
+	"github.com/bluele/gcache"
 
 	"github.com/fletaio/fleta/common"
 	"github.com/fletaio/fleta/common/hash"
@@ -20,6 +17,7 @@ import (
 	"github.com/fletaio/fleta/core/txpool"
 	"github.com/fletaio/fleta/core/types"
 	"github.com/fletaio/fleta/encoding"
+	"github.com/fletaio/fleta/service/p2p/peer"
 )
 
 // Node receives a block by the consensus
@@ -33,11 +31,13 @@ type Node struct {
 	requestTimer *RequestTimer
 	requestLock  sync.RWMutex
 	blockQ       *queue.SortedQueue
-	txMsgChans   []*chan *TxMsgItem
-	txMsgIdx     uint64
 	statusMap    map[string]*Status
 	txpool       *txpool.TransactionPool
 	txQ          *queue.ExpireQueue
+	txWaitQ      *queue.LinkedQueue
+	recvQueues   []*queue.Queue
+	sendQueues   []*queue.Queue
+	cache        gcache.Cache
 	isRunning    bool
 	closeLock    sync.RWMutex
 	isClose      bool
@@ -53,6 +53,18 @@ func NewNode(key key.Key, SeedNodeMap map[common.PublicHash]string, cn *chain.Ch
 		statusMap:    map[string]*Status{},
 		txpool:       txpool.NewTransactionPool(),
 		txQ:          queue.NewExpireQueue(),
+		txWaitQ:      queue.NewLinkedQueue(),
+		recvQueues: []*queue.Queue{
+			queue.NewQueue(), //block
+			queue.NewQueue(), //tx
+			queue.NewQueue(), //peer
+		},
+		sendQueues: []*queue.Queue{
+			queue.NewQueue(), //block
+			queue.NewQueue(), //tx
+			queue.NewQueue(), //peer
+		},
+		cache: gcache.New(500).LRU().Build(),
 	}
 	nd.ms = NewNodeMesh(cn.Provider().ChainID(), key, SeedNodeMap, nd, peerStorePath)
 	nd.requestTimer = NewRequestTimer(nd)
@@ -67,13 +79,13 @@ func NewNode(key key.Key, SeedNodeMap map[common.PublicHash]string, cn *chain.Ch
 // Init initializes node
 func (nd *Node) Init() error {
 	fc := encoding.Factory("message")
-	fc.Register(types.DefineHashedType("p2p.PingMessage"), &PingMessage{})
-	fc.Register(types.DefineHashedType("p2p.StatusMessage"), &StatusMessage{})
-	fc.Register(types.DefineHashedType("p2p.RequestMessage"), &RequestMessage{})
-	fc.Register(types.DefineHashedType("p2p.BlockMessage"), &BlockMessage{})
-	fc.Register(types.DefineHashedType("p2p.TransactionMessage"), &TransactionMessage{})
-	fc.Register(types.DefineHashedType("p2p.PeerListMessage"), &PeerListMessage{})
-	fc.Register(types.DefineHashedType("p2p.RequestPeerListMessage"), &RequestPeerListMessage{})
+	fc.Register(PingMessageType, &PingMessage{})
+	fc.Register(StatusMessageType, &StatusMessage{})
+	fc.Register(RequestMessageType, &RequestMessage{})
+	fc.Register(BlockMessageType, &BlockMessage{})
+	fc.Register(TransactionMessageType, &TransactionMessage{})
+	fc.Register(PeerListMessageType, &PeerListMessage{})
+	fc.Register(RequestPeerListMessageType, &RequestPeerListMessage{})
 	return nil
 }
 
@@ -92,7 +104,7 @@ func (nd *Node) Close() {
 // OnItemExpired is called when the item is expired
 func (nd *Node) OnItemExpired(Interval time.Duration, Key string, Item interface{}, IsLast bool) {
 	msg := Item.(*TransactionMessage)
-	nd.ms.ExceptCastLimit("", msg, 7)
+	nd.limitCastMessage(1, msg)
 	if IsLast {
 		var TxHash hash.Hash256
 		copy(TxHash[:], []byte(Key))
@@ -117,36 +129,117 @@ func (nd *Node) Run(BindAddress string) {
 	if WorkerCount < 1 {
 		WorkerCount = 1
 	}
-	workerEnd := make([]*chan struct{}, WorkerCount)
-	nd.txMsgChans = make([]*chan *TxMsgItem, WorkerCount)
 	for i := 0; i < WorkerCount; i++ {
-		mch := make(chan *TxMsgItem)
-		nd.txMsgChans[i] = &mch
-		ch := make(chan struct{})
-		workerEnd[i] = &ch
-		go func(pMsgCh *chan *TxMsgItem, pEndCh *chan struct{}) {
-			for {
-				select {
-				case item := <-(*pMsgCh):
-					if err := nd.addTx(item.Message.TxType, item.Message.Tx, item.Message.Sigs); err != nil {
-						rlog.Println("TransactionError", chain.HashTransactionByType(nd.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String(), err.Error())
-						if err != txpool.ErrPastSeq && err != txpool.ErrTooFarSeq {
-							(*item.ErrCh) <- err
-						} else {
-							(*item.ErrCh) <- nil
-						}
+		go func() {
+			for !nd.isClose {
+				Count := 0
+				for !nd.isClose {
+					v := nd.txWaitQ.Pop()
+					if v == nil {
 						break
 					}
+					item := v.(*TxMsgItem)
+					if err := nd.addTx(item.TxHash, item.Message.TxType, item.Message.Tx, item.Message.Sigs); err != nil {
+						if err != ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
+							rlog.Println("TransactionError", chain.HashTransactionByType(nd.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String(), err.Error())
+							if len(item.PeerID) > 0 {
+								nd.ms.RemovePeer(item.PeerID)
+							}
+						}
+					}
 					rlog.Println("TransactionAppended", chain.HashTransactionByType(nd.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String())
-					(*item.ErrCh) <- nil
 
-					nd.ms.ExceptCastLimit(item.PeerID, item.Message, 7)
-				case <-(*pEndCh):
-					return
+					if len(item.PeerID) > 0 {
+						var SenderPublicHash common.PublicHash
+						copy(SenderPublicHash[:], []byte(item.PeerID))
+						nd.exceptLimitCastMessage(1, SenderPublicHash, item.Message)
+					} else {
+						nd.limitCastMessage(1, item.Message)
+					}
+
+					Count++
+					if Count > 500 {
+						break
+					}
+				}
+				time.Sleep(50 * time.Millisecond)
+			}
+		}()
+	}
+
+	go func() {
+		for !nd.isClose {
+			hasMessage := false
+			for !nd.isClose {
+				for _, q := range nd.recvQueues {
+					v := q.Pop()
+					if v == nil {
+						continue
+					}
+					hasMessage = true
+					item := v.(*RecvMessageItem)
+					m, err := PacketToMessage(item.Packet)
+					if err != nil {
+						nd.ms.RemovePeer(item.PeerID)
+						break
+					}
+					if err := nd.handlePeerMessage(item.PeerID, m); err != nil {
+						nd.ms.RemovePeer(item.PeerID)
+						break
+					}
+				}
+				if !hasMessage {
+					break
 				}
 			}
-		}(&mch, &ch)
-	}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	go func() {
+		for !nd.isClose {
+			hasMessage := false
+			for !nd.isClose {
+				for _, q := range nd.sendQueues {
+					v := q.Pop()
+					if v == nil {
+						continue
+					}
+					hasMessage = true
+					item := v.(*SendMessageItem)
+					if len(item.Packet) > 0 {
+						if err := nd.ms.SendTo(item.Target, item.Packet); err != nil {
+							nd.ms.RemovePeer(string(item.Target[:]))
+						}
+					} else {
+						bs := MessageToPacket(item.Message)
+
+						var EmptyHash common.PublicHash
+						if bytes.Equal(item.Target[:], EmptyHash[:]) {
+							if item.Limit > 0 {
+								nd.ms.ExceptCastLimit("", bs, item.Limit)
+							} else {
+								nd.ms.BroadcastMessage(bs)
+							}
+						} else {
+							if item.Limit > 0 {
+								nd.ms.ExceptCastLimit(string(item.Target[:]), bs, item.Limit)
+							} else {
+								if err := nd.ms.SendTo(item.Target, bs); err != nil {
+									nd.ms.RemovePeer(string(item.Target[:]))
+								}
+							}
+						}
+					}
+					break
+				}
+				if !hasMessage {
+					break
+				}
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
 
 	blockTimer := time.NewTimer(time.Millisecond)
 	blockRequestTimer := time.NewTimer(time.Millisecond)
@@ -168,7 +261,7 @@ func (nd *Node) Run(BindAddress string) {
 				rlog.Println("Node", nd.myPublicHash.String(), nd.cn.Provider().Height(), "BlockConnected", b.Header.Generator.String(), b.Header.Height)
 				TargetHeight++
 				Count++
-				if Count > 100 {
+				if Count > 10 {
 					break
 				}
 				item = nd.blockQ.PopUntil(TargetHeight)
@@ -216,35 +309,32 @@ func (nd *Node) OnDisconnected(p peer.Peer) {
 }
 
 // OnRecv called when message received
-func (nd *Node) OnRecv(p peer.Peer, t uint16, compressed bool, bs []byte) error {
+func (nd *Node) OnRecv(p peer.Peer, bs []byte) error {
+	item := &RecvMessageItem{
+		PeerID: p.ID(),
+		Packet: bs,
+	}
+	t := PacketMessageType(bs)
+	switch t {
+	case RequestMessageType:
+		nd.recvQueues[0].Push(item)
+	case StatusMessageType:
+		nd.recvQueues[0].Push(item)
+	case BlockMessageType:
+		nd.recvQueues[0].Push(item)
+	case TransactionMessageType:
+		nd.recvQueues[1].Push(item)
+	case PeerListMessageType:
+		nd.recvQueues[2].Push(item)
+	case RequestPeerListMessageType:
+		nd.recvQueues[2].Push(item)
+	}
+	return nil
+}
+
+func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 	var SenderPublicHash common.PublicHash
-	copy(SenderPublicHash[:], []byte(p.ID()))
-
-	var mbs []byte
-	if compressed {
-		zr, err := gzip.NewReader(bytes.NewReader(bs))
-		if err != nil {
-			return err
-		}
-		defer zr.Close()
-
-		v, err := ioutil.ReadAll(zr)
-		if err != nil {
-			return err
-		}
-		mbs = v
-	} else {
-		mbs = bs
-	}
-
-	fc := encoding.Factory("message")
-	m, err := fc.Create(t)
-	if err != nil {
-		return err
-	}
-	if err := encoding.Unmarshal(mbs, &m); err != nil {
-		return err
-	}
+	copy(SenderPublicHash[:], []byte(ID))
 
 	switch msg := m.(type) {
 	case *RequestMessage:
@@ -272,17 +362,13 @@ func (nd *Node) OnRecv(p peer.Peer, t uint16, compressed bool, bs []byte) error 
 		sm := &BlockMessage{
 			Blocks: list,
 		}
-		if err := nd.ms.SendTo(SenderPublicHash, sm); err != nil {
-			return err
-		}
+		nd.sendMessage(0, SenderPublicHash, sm)
 		return nil
 	case *StatusMessage:
 		nd.statusLock.Lock()
-		if status, has := nd.statusMap[p.ID()]; has {
+		if status, has := nd.statusMap[ID]; has {
 			if status.Height < msg.Height {
-				status.Version = msg.Version
 				status.Height = msg.Height
-				status.LastHash = msg.LastHash
 			}
 		}
 		nd.statusLock.Unlock()
@@ -317,8 +403,8 @@ func (nd *Node) OnRecv(p peer.Peer, t uint16, compressed bool, bs []byte) error 
 			}
 			if h != msg.LastHash {
 				//TODO : critical error signal
-				rlog.Println(chain.ErrFoundForkedBlock, p.Name(), h.String(), msg.LastHash.String(), msg.Height)
-				nd.ms.RemovePeer(p.ID())
+				rlog.Println(chain.ErrFoundForkedBlock, ID, h.String(), msg.LastHash.String(), msg.Height)
+				nd.ms.RemovePeer(ID)
 			}
 		}
 		return nil
@@ -327,7 +413,7 @@ func (nd *Node) OnRecv(p peer.Peer, t uint16, compressed bool, bs []byte) error 
 			if err := nd.addBlock(b); err != nil {
 				if err == chain.ErrFoundForkedBlock {
 					//TODO : critical error signal
-					nd.ms.RemovePeer(p.ID())
+					nd.ms.RemovePeer(ID)
 				}
 				return err
 			}
@@ -335,7 +421,7 @@ func (nd *Node) OnRecv(p peer.Peer, t uint16, compressed bool, bs []byte) error 
 
 		if len(msg.Blocks) > 0 {
 			nd.statusLock.Lock()
-			if status, has := nd.statusMap[p.ID()]; has {
+			if status, has := nd.statusMap[ID]; has {
 				lastHeight := msg.Blocks[len(msg.Blocks)-1].Header.Height
 				if status.Height < lastHeight {
 					status.Height = lastHeight
@@ -345,23 +431,21 @@ func (nd *Node) OnRecv(p peer.Peer, t uint16, compressed bool, bs []byte) error 
 		}
 		return nil
 	case *TransactionMessage:
-		errCh := make(chan error)
-		idx := atomic.AddUint64(&nd.txMsgIdx, 1) % uint64(len(nd.txMsgChans))
-		(*nd.txMsgChans[idx]) <- &TxMsgItem{
+		if nd.txWaitQ.Size() > 200000 {
+			return txpool.ErrTransactionPoolOverflowed
+		}
+		TxHash := chain.HashTransactionByType(nd.cn.Provider().ChainID(), msg.TxType, msg.Tx)
+		nd.txWaitQ.Push(TxHash, &TxMsgItem{
+			TxHash:  TxHash,
 			Message: msg,
-			PeerID:  p.ID(),
-			ErrCh:   &errCh,
-		}
-		err := <-errCh
-		if err != ErrInvalidUTXO && err != txpool.ErrExistTransaction {
-			return err
-		}
+			PeerID:  ID,
+		})
 		return nil
 	case *PeerListMessage:
 		nd.ms.AddPeerList(msg.Ips, msg.Hashs)
 		return nil
 	case *RequestPeerListMessage:
-		nd.ms.SendPeerList(p.ID())
+		nd.ms.SendPeerList(ID)
 		return nil
 	default:
 		panic(ErrUnknownMessage) //TEMP
@@ -400,30 +484,29 @@ func (nd *Node) AddTx(tx types.Transaction, sigs []common.Signature) error {
 	if err != nil {
 		return err
 	}
-	if err := nd.addTx(t, tx, sigs); err != nil {
-		return err
-	}
-	nd.ms.ExceptCastLimit("", &TransactionMessage{
-		TxType: t,
-		Tx:     tx,
-		Sigs:   sigs,
-	}, 7)
+	TxHash := chain.HashTransactionByType(nd.cn.Provider().ChainID(), t, tx)
+	nd.txWaitQ.Push(TxHash, &TxMsgItem{
+		TxHash: TxHash,
+		Message: &TransactionMessage{
+			TxType: t,
+			Tx:     tx,
+			Sigs:   sigs,
+		},
+	})
 	return nil
 }
 
-func (nd *Node) addTx(t uint16, tx types.Transaction, sigs []common.Signature) error {
+func (nd *Node) addTx(TxHash hash.Hash256, t uint16, tx types.Transaction, sigs []common.Signature) error {
 	if nd.txpool.Size() > 65535 {
 		return txpool.ErrTransactionPoolOverflowed
 	}
 
-	TxHash := chain.HashTransactionByType(nd.cn.Provider().ChainID(), t, tx)
-
-	ctx := nd.cn.NewContext()
+	cp := nd.cn.Provider()
 	if nd.txpool.IsExist(TxHash) {
 		return txpool.ErrExistTransaction
 	}
 	if atx, is := tx.(chain.AccountTransaction); is {
-		seq := ctx.Seq(atx.From())
+		seq := cp.Seq(atx.From())
 		if atx.Seq() <= seq {
 			return txpool.ErrPastSeq
 		} else if atx.Seq() > seq+100 {
@@ -443,6 +526,7 @@ func (nd *Node) addTx(t uint16, tx types.Transaction, sigs []common.Signature) e
 	if err != nil {
 		return err
 	}
+	ctx := nd.cn.NewContext()
 	ctw := types.NewContextWrapper(pid, ctx)
 	if err := tx.Validate(p, ctw, signers); err != nil {
 		return err
@@ -518,11 +602,4 @@ func (nd *Node) cleanPool(b *types.Block) {
 		nd.txpool.Remove(TxHash, tx)
 		nd.txQ.Remove(string(TxHash[:]))
 	}
-}
-
-// TxMsgItem used to store transaction message
-type TxMsgItem struct {
-	Message *TransactionMessage
-	PeerID  string
-	ErrCh   *chan error
 }

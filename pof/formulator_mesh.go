@@ -2,11 +2,11 @@ package pof
 
 import (
 	crand "crypto/rand"
-	"encoding/binary"
 	"sync"
 	"time"
 
 	"github.com/fletaio/fleta/common"
+	"github.com/fletaio/fleta/common/binutil"
 	"github.com/fletaio/fleta/common/debug"
 	"github.com/fletaio/fleta/common/hash"
 	"github.com/fletaio/fleta/common/key"
@@ -159,11 +159,11 @@ func (ms *FormulatorNodeMesh) handleConnection(p peer.Peer) error {
 	defer ms.fr.OnObserverDisconnected(p)
 
 	for {
-		t, compressed, bs, err := p.ReadPacket()
+		bs, err := p.ReadPacket()
 		if err != nil {
 			return err
 		}
-		if err := ms.fr.onRecv(p, t, compressed, bs); err != nil {
+		if err := ms.fr.onObserverRecv(p, bs); err != nil {
 			return err
 		}
 	}
@@ -182,7 +182,7 @@ func (ms *FormulatorNodeMesh) recvHandshake(conn *websocket.Conn) error {
 	if ChainID != ms.fr.cs.cn.Provider().ChainID() {
 		return chain.ErrInvalidChainID
 	}
-	timestamp := binary.LittleEndian.Uint64(req[32:])
+	timestamp := binutil.LittleEndian.Uint64(req[32:])
 	diff := time.Duration(uint64(time.Now().UnixNano()) - timestamp)
 	if diff < 0 {
 		diff = -diff
@@ -206,7 +206,7 @@ func (ms *FormulatorNodeMesh) sendHandshake(conn *websocket.Conn) (common.Public
 		return common.PublicHash{}, err
 	}
 	req[0] = ms.fr.cs.cn.Provider().ChainID()
-	binary.LittleEndian.PutUint64(req[32:], uint64(time.Now().UnixNano()))
+	binutil.LittleEndian.PutUint64(req[32:], uint64(time.Now().UnixNano()))
 	copy(req[40:], ms.fr.Config.Formulator[:])
 	if err := conn.WriteMessage(websocket.BinaryMessage, req); err != nil {
 		return common.PublicHash{}, err

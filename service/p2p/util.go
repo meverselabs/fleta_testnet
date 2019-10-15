@@ -3,10 +3,10 @@ package p2p
 import (
 	"bytes"
 	"compress/gzip"
-	"encoding/binary"
 	"io"
+	"io/ioutil"
 
-	"github.com/fletaio/fleta/common/util"
+	"github.com/fletaio/fleta/common/binutil"
 	"github.com/fletaio/fleta/encoding"
 )
 
@@ -19,7 +19,7 @@ func ReadUint64(r io.Reader) (uint64, int64, error) {
 	} else {
 		read += n
 	}
-	return binary.LittleEndian.Uint64(BNum), int64(read), nil
+	return binutil.LittleEndian.Uint64(BNum), int64(read), nil
 }
 
 // ReadUint32 reads a uint32 number from the reader
@@ -31,7 +31,7 @@ func ReadUint32(r io.Reader) (uint32, int64, error) {
 	} else {
 		read += n
 	}
-	return binary.LittleEndian.Uint32(BNum), int64(read), nil
+	return binutil.LittleEndian.Uint32(BNum), int64(read), nil
 }
 
 // ReadUint16 reads a uint16 number from the reader
@@ -43,7 +43,7 @@ func ReadUint16(r io.Reader) (uint16, int64, error) {
 	} else {
 		read += n
 	}
-	return binary.LittleEndian.Uint16(BNum), int64(read), nil
+	return binutil.LittleEndian.Uint16(BNum), int64(read), nil
 }
 
 // ReadUint8 reads a uint8 number from the reader
@@ -150,10 +150,11 @@ func MessageToPacket(m interface{}) []byte {
 		panic(err)
 	}
 	var buffer bytes.Buffer
-	buffer.Write(util.Uint16ToBytes(t))
 	buffer.Write(make([]byte, 4))
-	if _, is := m.(*BlockMessage); is {
-		buffer.Write([]byte{1})
+	buffer.Write(binutil.LittleEndian.Uint16ToBytes(t))
+	//if _, is := m.(*BlockMessage); is {
+	if true {
+		//buffer.Write([]byte{1})
 		zw := gzip.NewWriter(&buffer)
 		enc := encoding.NewEncoder(zw)
 		if err := enc.Encode(m); err != nil {
@@ -162,13 +163,53 @@ func MessageToPacket(m interface{}) []byte {
 		zw.Flush()
 		zw.Close()
 	} else {
-		buffer.Write([]byte{0})
+		//buffer.Write([]byte{0})
 		enc := encoding.NewEncoder(&buffer)
 		if err := enc.Encode(m); err != nil {
 			panic(err)
 		}
 	}
 	bs := buffer.Bytes()
-	binary.LittleEndian.PutUint32(bs[3:], uint32(len(bs)-7))
+	//binutil.LittleEndian.PutUint32(bs, uint32(len(bs)-7))
+	binutil.LittleEndian.PutUint32(bs, uint32(len(bs)-6))
 	return bs
+}
+
+func PacketMessageType(bs []byte) uint16 {
+	return binutil.LittleEndian.Uint16(bs[4:])
+}
+
+func PacketToMessage(bs []byte) (interface{}, error) {
+	t := PacketMessageType(bs)
+	//compressed := (bs[6] == 1)
+	compressed := true
+
+	var mbs []byte
+	if compressed {
+		//zr, err := gzip.NewReader(bytes.NewReader(bs[7:]))
+		zr, err := gzip.NewReader(bytes.NewReader(bs[6:]))
+		if err != nil {
+			return nil, err
+		}
+		defer zr.Close()
+
+		v, err := ioutil.ReadAll(zr)
+		if err != nil {
+			return nil, err
+		}
+		mbs = v
+	} else {
+		//mbs = bs[7:]
+		mbs = bs[6:]
+	}
+
+	fc := encoding.Factory("message")
+	m, err := fc.Create(t)
+	if err != nil {
+		return nil, err
+	}
+	if err := encoding.Unmarshal(mbs, &m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }

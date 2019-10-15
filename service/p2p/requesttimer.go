@@ -71,7 +71,7 @@ func (rm *RequestTimer) RemovesByValue(value string) {
 
 // Run is the main loop of RequestTimer
 func (rm *RequestTimer) Run() {
-	timer := time.NewTimer(100 * time.Millisecond)
+	timer := time.NewTimer(time.Millisecond)
 	for {
 		select {
 		case <-timer.C:
@@ -103,7 +103,7 @@ func (rm *RequestTimer) Run() {
 				}
 			}
 
-			timer.Reset(100 * time.Millisecond)
+			timer.Reset(50 * time.Millisecond)
 		}
 	}
 }

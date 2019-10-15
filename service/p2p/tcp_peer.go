@@ -5,7 +5,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fletaio/fleta/common/util"
+	"github.com/fletaio/fleta/common/binutil"
 	"github.com/fletaio/fleta/core/types"
 )
 
@@ -37,21 +37,24 @@ func NewTCPPeer(conn net.Conn, ID string, Name string, connectedTime int64) *TCP
 		defer p.Close()
 
 		pingCountLimit := uint64(3)
-		pingTicker := time.NewTicker(10 * time.Second)
 		for !p.isClose {
-			select {
-			case <-pingTicker.C:
-				if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
-					return
-				}
-				_, err := p.conn.Write(util.Uint16ToBytes(p.pingType))
+			if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+				return
+			}
+			/*
+				_, err := p.conn.Write(binutil.LittleEndian.Uint32ToBytes(0))
 				if err != nil {
 					return
 				}
-				if atomic.AddUint64(&p.pingCount, 1) > pingCountLimit {
-					return
-				}
+			*/
+			_, err := p.conn.Write(binutil.LittleEndian.Uint16ToBytes(p.pingType))
+			if err != nil {
+				return
 			}
+			if atomic.AddUint64(&p.pingCount, 1) > pingCountLimit {
+				return
+			}
+			time.Sleep(10 * time.Second)
 		}
 	}()
 	return p
@@ -73,50 +76,80 @@ func (p *TCPPeer) Close() {
 	p.conn.Close()
 }
 
-// ReadPacket returns a packet data
-func (p *TCPPeer) ReadPacket() (uint16, bool, []byte, error) {
-	r := NewCopyReader(p.conn)
+// IsClosed returns it is closed or not
+func (p *TCPPeer) IsClosed() bool {
+	return p.isClose
+}
 
-	var t uint16
+// ReadPacket returns a packet data
+func (p *TCPPeer) ReadPacket() ([]byte, error) {
 	for {
-		if v, _, err := ReadUint16(r); err != nil {
-			return 0, false, nil, err
+		if t, _, err := ReadUint16(p.conn); err != nil {
+			return nil, err
 		} else {
 			atomic.StoreUint64(&p.pingCount, 0)
-			if v == p.pingType {
-				r.Reset()
+			if t == p.pingType { // ping
 				continue
 			} else {
-				t = v
-				break
+				Len, _, err := ReadUint32(p.conn)
+				if err != nil {
+					return nil, err
+				}
+				bs := make([]byte, 6+Len)
+				binutil.LittleEndian.PutUint32(bs, Len)
+				binutil.LittleEndian.PutUint16(bs[4:], t)
+				if _, err := FillBytes(p.conn, bs[6:]); err != nil {
+					return nil, err
+				}
+				return bs, nil
 			}
 		}
 	}
-
-	if cp, _, err := ReadUint8(r); err != nil {
-		return 0, false, nil, err
-	} else if Len, _, err := ReadUint32(r); err != nil {
-		return 0, false, nil, err
-	} else if Len == 0 {
-		return 0, false, nil, ErrUnknownMessage
-	} else {
-		zbs := make([]byte, Len)
-		if _, err := FillBytes(r, zbs); err != nil {
-			return 0, false, nil, err
+	/*
+		for {
+			if Len, _, err := ReadUint32(p.conn); err != nil {
+				return nil, err
+			} else {
+				atomic.StoreUint64(&p.pingCount, 0)
+				if Len == 0 { // ping
+					continue
+				} else {
+					bs := make([]byte, 4+Len)
+					binutil.LittleEndian.PutUint32(bs, Len)
+					if _, err := FillBytes(p.conn, bs[4:]); err != nil {
+						return nil, err
+					}
+					return bs, nil
+				}
+			}
 		}
-		return t, cp == 1, r.Bytes(), nil
-	}
+	*/
 }
 
 // SendPacket sends packet to the WebsocketPeer
 func (p *TCPPeer) SendPacket(bs []byte) {
 	if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		p.Close()
 		return
 	}
-	_, err := p.conn.Write(bs)
-	if err != nil {
+	if _, err := p.conn.Write(bs[4:6]); err != nil {
+		p.Close()
 		return
 	}
+	if _, err := p.conn.Write(bs[0:4]); err != nil {
+		p.Close()
+		return
+	}
+	if _, err := p.conn.Write(bs[6:]); err != nil {
+		p.Close()
+		return
+	}
+	/*
+		if _, err := p.conn.Write(bs); err != nil {
+			p.Close()
+			return
+		}
+	*/
 }
 
 // ConnectedTime returns peer connected time

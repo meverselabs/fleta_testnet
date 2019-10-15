@@ -5,7 +5,8 @@ type Peer interface {
 	ID() string
 	Name() string
 	Close()
-	ReadPacket() (uint16, bool, []byte, error)
+	IsClosed() bool
+	ReadPacket() ([]byte, error)
 	SendPacket(bs []byte)
 	ConnectedTime() int64
 }
