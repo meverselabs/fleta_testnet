@@ -39,36 +39,35 @@ type FormulatorConfig struct {
 // FormulatorNode procudes a block by the consensus
 type FormulatorNode struct {
 	sync.Mutex
-	Config           *FormulatorConfig
-	cs               *Consensus
-	ms               *FormulatorNodeMesh
-	nm               *p2p.NodeMesh
-	key              key.Key
-	ndkey            key.Key
-	myPublicHash     common.PublicHash
-	frPublicHash     common.PublicHash
-	statusLock       sync.Mutex
-	genLock          sync.Mutex
-	lastGenItemMap   map[uint32]*genItem
-	lastReqMessage   *BlockReqMessage
-	lastGenHeight    uint32
-	lastGenTime      int64
-	statusMap        map[string]*p2p.Status
-	obStatusMap      map[string]*p2p.Status
-	requestTimer     *p2p.RequestTimer
-	requestNodeTimer *p2p.RequestTimer
-	requestLock      sync.RWMutex
-	blockQ           *queue.SortedQueue
-	txpool           *txpool.TransactionPool
-	txQ              *queue.ExpireQueue
-	txWaitQ          *queue.LinkedQueue
-	recvQueues       []*queue.Queue
-	sendQueues       []*queue.Queue
-	singleCache      gcache.Cache
-	batchCache       gcache.Cache
-	isRunning        bool
-	closeLock        sync.RWMutex
-	isClose          bool
+	Config         *FormulatorConfig
+	cs             *Consensus
+	ms             *FormulatorNodeMesh
+	nm             *p2p.NodeMesh
+	key            key.Key
+	ndkey          key.Key
+	myPublicHash   common.PublicHash
+	frPublicHash   common.PublicHash
+	statusLock     sync.Mutex
+	genLock        sync.Mutex
+	lastGenItemMap map[uint32]*genItem
+	lastReqMessage *BlockReqMessage
+	lastGenHeight  uint32
+	lastGenTime    int64
+	statusMap      map[string]*p2p.Status
+	obStatusMap    map[string]*p2p.Status
+	requestTimer   *p2p.RequestTimer
+	requestLock    sync.RWMutex
+	blockQ         *queue.SortedQueue
+	txpool         *txpool.TransactionPool
+	txQ            *queue.ExpireQueue
+	txWaitQ        *queue.LinkedQueue
+	recvQueues     []*queue.Queue
+	sendQueues     []*queue.Queue
+	singleCache    gcache.Cache
+	batchCache     gcache.Cache
+	isRunning      bool
+	closeLock      sync.RWMutex
+	isClose        bool
 
 	//TEMP
 	Txs      []types.Transaction
@@ -82,21 +81,20 @@ func NewFormulatorNode(Config *FormulatorConfig, key key.Key, ndkey key.Key, Net
 		Config.MaxTransactionsPerBlock = 10000
 	}
 	fr := &FormulatorNode{
-		Config:           Config,
-		cs:               cs,
-		key:              key,
-		ndkey:            ndkey,
-		myPublicHash:     common.NewPublicHash(ndkey.PublicKey()),
-		frPublicHash:     common.NewPublicHash(key.PublicKey()),
-		lastGenItemMap:   map[uint32]*genItem{},
-		statusMap:        map[string]*p2p.Status{},
-		obStatusMap:      map[string]*p2p.Status{},
-		requestTimer:     p2p.NewRequestTimer(nil),
-		requestNodeTimer: p2p.NewRequestTimer(nil),
-		blockQ:           queue.NewSortedQueue(),
-		txpool:           txpool.NewTransactionPool(),
-		txQ:              queue.NewExpireQueue(),
-		txWaitQ:          queue.NewLinkedQueue(),
+		Config:         Config,
+		cs:             cs,
+		key:            key,
+		ndkey:          ndkey,
+		myPublicHash:   common.NewPublicHash(ndkey.PublicKey()),
+		frPublicHash:   common.NewPublicHash(key.PublicKey()),
+		lastGenItemMap: map[uint32]*genItem{},
+		statusMap:      map[string]*p2p.Status{},
+		obStatusMap:    map[string]*p2p.Status{},
+		requestTimer:   p2p.NewRequestTimer(nil),
+		blockQ:         queue.NewSortedQueue(),
+		txpool:         txpool.NewTransactionPool(),
+		txQ:            queue.NewExpireQueue(),
+		txWaitQ:        queue.NewLinkedQueue(),
 		recvQueues: []*queue.Queue{
 			queue.NewQueue(), //block
 			queue.NewQueue(), //tx
@@ -194,7 +192,6 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 	go fr.ms.Run()
 	go fr.nm.Run(BindAddress)
 	go fr.requestTimer.Run()
-	go fr.requestNodeTimer.Run()
 
 	/*
 		WorkerCount := runtime.NumCPU() - 1
@@ -262,6 +259,42 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 						fr.nm.RemovePeer(item.PeerID)
 						break
 					}
+					break
+				}
+				if !hasMessage {
+					break
+				}
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}()
+
+	go func() {
+		for !fr.isClose {
+			hasMessage := false
+			for !fr.isClose {
+				for _, q := range fr.sendQueues {
+					v := q.Pop()
+					if v == nil {
+						continue
+					}
+					hasMessage = true
+					item := v.(*p2p.SendMessageItem)
+					var EmptyHash common.PublicHash
+					if bytes.Equal(item.Target[:], EmptyHash[:]) {
+						if item.Limit > 0 {
+							fr.nm.ExceptCastLimit("", item.Packet, item.Limit)
+						} else {
+							fr.nm.BroadcastPacket(item.Packet)
+						}
+					} else {
+						if item.Limit > 0 {
+							fr.nm.ExceptCastLimit(string(item.Target[:]), item.Packet, item.Limit)
+						} else {
+							fr.nm.SendTo(item.Target, item.Packet)
+						}
+					}
+					break
 				}
 				if !hasMessage {
 					break

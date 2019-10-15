@@ -86,7 +86,7 @@ func (fr *FormulatorNode) broadcastStatus() error {
 }
 
 func (fr *FormulatorNode) sendRequestBlockTo(TargetID string, Height uint32, Count uint8) error {
-	log.Println("sendRequestBlockTo", TargetID, Height, Count)
+	log.Println("sendRequestBlockTo", Height, Count)
 
 	nm := &p2p.RequestMessage{
 		Height: Height,
@@ -111,7 +111,7 @@ func (fr *FormulatorNode) sendRequestBlockToNode(TargetPubHash common.PublicHash
 	}
 	fr.sendMessage(0, TargetPubHash, nm)
 	for i := uint32(0); i < uint32(Count); i++ {
-		fr.requestNodeTimer.Add(Height+i, 10*time.Second, string(TargetPubHash[:]))
+		fr.requestTimer.Add(Height+i, 10*time.Second, string(TargetPubHash[:]))
 	}
 	return nil
 }

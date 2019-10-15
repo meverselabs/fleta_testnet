@@ -32,7 +32,7 @@ func (fr *FormulatorNode) OnDisconnected(p peer.Peer) {
 	fr.statusLock.Lock()
 	delete(fr.statusMap, p.ID())
 	fr.statusLock.Unlock()
-	fr.requestNodeTimer.RemovesByValue(p.ID())
+	fr.requestTimer.RemovesByValue(p.ID())
 	go fr.tryRequestBlocks()
 }
 
@@ -172,7 +172,7 @@ func (fr *FormulatorNode) tryRequestBlocks() {
 	BaseHeight := fr.cs.cn.Provider().Height() + 1
 	for i := uint32(0); i < 10; i++ {
 		TargetHeight := BaseHeight + i
-		if !fr.requestNodeTimer.Exist(TargetHeight) {
+		if !fr.requestTimer.Exist(TargetHeight) {
 			enables := []string{}
 			fr.statusLock.Lock()
 			for pubhash, status := range fr.statusMap {
@@ -196,7 +196,7 @@ func (fr *FormulatorNode) tryRequestBlocks() {
 		copy(TargetPublicHash[:], []byte(selectedPubHash))
 		enableCount := 0
 		for i := Height + 1; i <= Height+10 && i <= LimitHeight; i++ {
-			if !fr.requestNodeTimer.Exist(i) {
+			if !fr.requestTimer.Exist(i) {
 				enableCount++
 			}
 		}
@@ -204,7 +204,7 @@ func (fr *FormulatorNode) tryRequestBlocks() {
 			fr.sendRequestBlockToNode(TargetPublicHash, Height+1, 10)
 		} else {
 			for i := Height + 1; i <= Height+10 && i <= LimitHeight; i++ {
-				if !fr.requestNodeTimer.Exist(i) {
+				if !fr.requestTimer.Exist(i) {
 					fr.sendRequestBlockToNode(TargetPublicHash, i, 1)
 				}
 			}

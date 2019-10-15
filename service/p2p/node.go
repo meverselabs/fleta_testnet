@@ -236,6 +236,40 @@ func (nd *Node) Run(BindAddress string) {
 
 	go func() {
 		for !nd.isClose {
+			hasMessage := false
+			for !nd.isClose {
+				for _, q := range nd.sendQueues {
+					v := q.Pop()
+					if v == nil {
+						continue
+					}
+					hasMessage = true
+					item := v.(*SendMessageItem)
+					var EmptyHash common.PublicHash
+					if bytes.Equal(item.Target[:], EmptyHash[:]) {
+						if item.Limit > 0 {
+							nd.ms.ExceptCastLimit("", item.Packet, item.Limit)
+						} else {
+							nd.ms.BroadcastPacket(item.Packet)
+						}
+					} else {
+						if item.Limit > 0 {
+							nd.ms.ExceptCastLimit(string(item.Target[:]), item.Packet, item.Limit)
+						} else {
+							nd.ms.SendTo(item.Target, item.Packet)
+						}
+					}
+				}
+				if !hasMessage {
+					break
+				}
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	go func() {
+		for !nd.isClose {
 			nd.tryRequestBlocks()
 			time.Sleep(500 * time.Millisecond)
 		}

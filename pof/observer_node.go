@@ -164,23 +164,26 @@ func (ob *ObserverNode) Run(BindObserver string, BindFormulator string) {
 		for !ob.isClose {
 			hasMessage := false
 			for !ob.isClose {
-				for _, rq := range ob.recvQueues {
-					if v := rq.Pop(); v != nil {
-						hasMessage = true
-						item := v.(*p2p.RecvMessageItem)
-						m, err := p2p.PacketToMessage(item.Packet)
-						if err != nil {
-							log.Println("PacketToMessage", err)
+				for _, q := range ob.recvQueues {
+					v := q.Pop()
+					if v == nil {
+						continue
+					}
+					hasMessage = true
+					item := v.(*p2p.RecvMessageItem)
+					m, err := p2p.PacketToMessage(item.Packet)
+					if err != nil {
+						log.Println("PacketToMessage", err)
+						ob.fs.RemovePeer(item.PeerID)
+						break
+					}
+					if p, has := ob.fs.peerMap[item.PeerID]; has {
+						if err := ob.handleFormulatorMessage(p, m, item.Packet); err != nil {
+							log.Println("Formulator Error", p.Name(), err)
 							ob.fs.RemovePeer(item.PeerID)
-							break
-						}
-						if p, has := ob.fs.peerMap[item.PeerID]; has {
-							if err := ob.handleFormulatorMessage(p, m, item.Packet); err != nil {
-								log.Println("Formulator Error", p.Name(), err)
-								ob.fs.RemovePeer(item.PeerID)
-							}
 						}
 					}
+					break
 				}
 				if !hasMessage {
 					break
@@ -189,24 +192,58 @@ func (ob *ObserverNode) Run(BindObserver string, BindFormulator string) {
 			time.Sleep(100 * time.Millisecond)
 		}
 	}()
+
 	go func() {
 		for !ob.isClose {
 			hasMessage := false
 			for !ob.isClose {
-				for _, sq := range ob.sendQueues {
-					if v := sq.Pop(); v != nil {
-						hasMessage = true
-						item := v.(*p2p.SendMessageItem)
-						if len(item.Packet) > 0 {
-							if err := ob.fs.SendTo(item.Address, item.Packet); err != nil {
-								ob.fs.RemovePeer(string(item.Address[:]))
-							}
-						} else {
-							if err := ob.fs.SendTo(item.Address, item.Packet); err != nil {
-								ob.fs.RemovePeer(string(item.Address[:]))
-							}
+				for _, q := range ob.sendQueues {
+					v := q.Pop()
+					if v == nil {
+						continue
+					}
+					hasMessage = true
+					item := v.(*p2p.SendMessageItem)
+					if len(item.Packet) > 0 {
+						if err := ob.fs.SendTo(item.Address, item.Packet); err != nil {
+							ob.fs.RemovePeer(string(item.Address[:]))
+						}
+					} else {
+						if err := ob.fs.SendTo(item.Address, item.Packet); err != nil {
+							ob.fs.RemovePeer(string(item.Address[:]))
 						}
 					}
+					break
+				}
+				if !hasMessage {
+					break
+				}
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}()
+
+	go func() {
+		for !ob.isClose {
+			hasMessage := false
+			for !ob.isClose {
+				for _, q := range ob.sendQueues {
+					v := q.Pop()
+					if v == nil {
+						continue
+					}
+					hasMessage = true
+					item := v.(*p2p.SendMessageItem)
+					if len(item.Packet) > 0 {
+						if err := ob.fs.SendTo(item.Address, item.Packet); err != nil {
+							ob.fs.RemovePeer(string(item.Address[:]))
+						}
+					} else {
+						if err := ob.fs.SendTo(item.Address, item.Packet); err != nil {
+							ob.fs.RemovePeer(string(item.Address[:]))
+						}
+					}
+					break
 				}
 				if !hasMessage {
 					break
