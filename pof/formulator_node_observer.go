@@ -379,7 +379,7 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 			return err
 		}
 
-		nm := &BlockGenMessage{
+		sm := &BlockGenMessage{
 			Block: b,
 		}
 		lastHeader = &b.Header
@@ -387,13 +387,13 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 		if sig, err := fr.key.Sign(encoding.Hash(b.Header)); err != nil {
 			return err
 		} else {
-			nm.GeneratorSignature = sig
+			sm.GeneratorSignature = sig
 		}
-		p.SendPacket(p2p.MessageToPacket(nm))
+		p.SendPacket(p2p.MessageToPacket(sm))
 
-		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenMessage", nm.Block.Header.Height, len(nm.Block.Transactions))
+		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenMessage", sm.Block.Header.Height, len(sm.Block.Transactions))
 
-		fr.lastGenMessages = append(fr.lastGenMessages, nm)
+		fr.lastGenMessages = append(fr.lastGenMessages, sm)
 		fr.lastContextes = append(fr.lastContextes, ctx)
 		fr.lastGenHeight = ctx.TargetHeight()
 		fr.lastGenTime = time.Now().UnixNano()
