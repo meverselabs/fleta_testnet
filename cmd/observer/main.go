@@ -95,7 +95,7 @@ func main() {
 
 	MaxBlocksPerFormulator := uint32(10)
 	ChainID := uint8(0x01)
-	Name := "FLEAT Mainnet"
+	Name := "FLETA Testnet"
 	Version := uint16(0x0001)
 
 	var back backend.StoreBackend
@@ -133,13 +133,6 @@ func main() {
 	}
 
 	cs := pof.NewConsensus(MaxBlocksPerFormulator, ObserverKeys)
-	cs.SetMaxPhaseDiff(func(Height uint32) uint32 {
-		if Height > 12270472 {
-			return 2
-		} else {
-			return 0
-		}
-	})
 	app := app.NewFletaApp()
 	cn := chain.NewChain(cs, app, st)
 	cn.MustAddProcess(admin.NewAdmin(1))

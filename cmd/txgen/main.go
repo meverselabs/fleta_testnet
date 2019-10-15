@@ -32,15 +32,14 @@ import (
 	"github.com/fletaio/fleta/process/payment"
 	"github.com/fletaio/fleta/process/vault"
 	"github.com/fletaio/fleta/service/apiserver"
+	"github.com/fletaio/fleta/service/p2p"
 )
 
 // Config is a configuration for the cmd
 type Config struct {
 	SeedNodeMap    map[string]string
-	ObserverKeyMap map[string]string
-	GenKeyHex      string
 	NodeKeyHex     string
-	Formulator     string
+	ObserverKeys   []string
 	Port           int
 	APIPort        int
 	StoreRoot      string
@@ -56,23 +55,14 @@ func main() {
 		panic(err)
 	}
 	if len(cfg.StoreRoot) == 0 {
-		cfg.StoreRoot = "./fdata"
+		cfg.StoreRoot = "./ndata"
 	}
 	if len(cfg.RLogHost) > 0 && cfg.UseRLog {
 		if len(cfg.RLogPath) == 0 {
-			cfg.RLogPath = "./fdata_rlog"
+			cfg.RLogPath = "./ndata_rlog"
 		}
 		rlog.SetRLogHost(cfg.RLogHost)
 		rlog.Enablelogger(cfg.RLogPath)
-	}
-
-	var frkey key.Key
-	if bs, err := hex.DecodeString(cfg.GenKeyHex); err != nil {
-		panic(err)
-	} else if Key, err := key.NewMemoryKeyFromBytes(bs); err != nil {
-		panic(err)
-	} else {
-		frkey = Key
 	}
 
 	var ndkey key.Key
@@ -107,14 +97,12 @@ func main() {
 		}
 	}
 
-	NetAddressMap := map[common.PublicHash]string{}
 	ObserverKeys := []common.PublicHash{}
-	for k, netAddr := range cfg.ObserverKeyMap {
+	for _, k := range cfg.ObserverKeys {
 		pubhash, err := common.ParsePublicHash(k)
 		if err != nil {
 			panic(err)
 		}
-		NetAddressMap[pubhash] = "ws://" + netAddr
 		ObserverKeys = append(ObserverKeys, pubhash)
 	}
 	SeedNodeMap := map[common.PublicHash]string{}
@@ -125,6 +113,11 @@ func main() {
 		}
 		SeedNodeMap[pubhash] = netAddr
 	}
+
+	MaxBlocksPerFormulator := uint32(10)
+	ChainID := uint8(0x01)
+	Name := "FLETA Testnet"
+	Version := uint16(0x0001)
 
 	cm := closer.NewManager()
 	sigc := make(chan os.Signal, 1)
@@ -138,11 +131,6 @@ func main() {
 		cm.CloseAll()
 	}()
 	defer cm.CloseAll()
-
-	MaxBlocksPerFormulator := uint32(10)
-	ChainID := uint8(0x01)
-	Name := "FLETA Testnet"
-	Version := uint16(0x0001)
 
 	var back backend.StoreBackend
 	var cdb *pile.DB
@@ -211,38 +199,34 @@ func main() {
 		panic(err)
 	}
 
-	switch cfg.GenKeyHex {
-	case "b4f95ba0cf35632e708a820d9cfb61a16370baeb8fb3dedd3de5e88525e9765f":
-		Addrs = Addrs[:5000]
-		//Addrs = Addrs[:7500]
-	case "f9d8e80d688c8b79a0470eaf418d0b6d0adac0648af9481f6d58b69ecebeb82c":
-		Addrs = Addrs[5000:10000]
-		//Addrs = Addrs[7500:15000]
-	case "a3bcc459e90b575d75a64aa7f8a0e45b610057d2132112f9d5876b358d95609b":
-		Addrs = Addrs[10000:15000]
-		//Addrs = Addrs[15000:22500]
-	case "a1dde36e03c1f5cbac2bfb98144d555b5b52f7540e4c83c5d5ca9e47899e953a":
-		Addrs = Addrs[15000:20000]
-		//Addrs = Addrs[22500:30000]
-	default:
-		Addrs = []common.Address{}
-		//Addrs = Addrs[0:1]
-	}
-
-	fr := pof.NewFormulatorNode(&pof.FormulatorConfig{
-		Formulator:              common.MustParseAddress(cfg.Formulator),
-		MaxTransactionsPerBlock: 5000,
-		Addrs:                   Addrs,
-	}, frkey, ndkey, NetAddressMap, SeedNodeMap, cs, cfg.StoreRoot+"/peer")
-	if err := fr.Init(); err != nil {
+	nd := p2p.NewNode(ndkey, SeedNodeMap, cn, cfg.StoreRoot+"/peer")
+	if err := nd.Init(); err != nil {
 		panic(err)
 	}
 	cm.RemoveAll()
-	cm.Add("formulator", fr)
+	cm.Add("node", nd)
 
 	waitMap := map[common.Address]*chan struct{}{}
 	if false {
 		go func() {
+			switch cfg.NodeKeyHex {
+			case "74a4bb065b9553e18c5f6aab54bcb07db58f2950b09d3be024e20318512d97bb":
+				Addrs = Addrs[:7500]
+				//Addrs = Addrs[:1]
+			case "f7b6a6291165b7d4cea6d16b911b6f2ba024aac6f160b230b9a04de876f3b045":
+				Addrs = Addrs[7500:15000]
+				//Addrs = Addrs[50:51]
+			case "4bc61ab268197c465d471d67618a3bf385651a93ed5011b8db08f5dfdca43c1d":
+				Addrs = Addrs[15000:22500]
+				//Addrs = Addrs[100:101]
+			case "bfe9f217f31f52a8e3e975c415d297ff201a4c4abfbcb921eb9013b0c21397f4":
+				Addrs = Addrs[22500:30000]
+				//Addrs = Addrs[150:151]
+			default:
+				Addrs = []common.Address{}
+				//Addrs = Addrs[0:1]
+			}
+
 			for _, Addr := range Addrs {
 				waitMap[Addr] = ws.addAddress(Addr)
 			}
@@ -269,8 +253,8 @@ func main() {
 							if err != nil {
 								panic(err)
 							}
-							if err := fr.AddTx(tx, []common.Signature{sig}); err != nil {
-								//panic(err)
+							if err := nd.AddTx(tx, []common.Signature{sig}); err != nil {
+								panic(err)
 							}
 							time.Sleep(100 * time.Millisecond)
 						}
@@ -295,7 +279,7 @@ func main() {
 							if err != nil {
 								panic(err)
 							}
-							if err := fr.AddTx(tx, []common.Signature{sig}); err != nil {
+							if err := nd.AddTx(tx, []common.Signature{sig}); err != nil {
 								switch err {
 								case txpool.ErrExistTransaction:
 								case txpool.ErrTooFarSeq:
@@ -338,7 +322,7 @@ func main() {
 		}
 	}()
 
-	go fr.Run(":" + strconv.Itoa(cfg.Port))
+	go nd.Run(":" + strconv.Itoa(cfg.Port))
 	go as.Run(":" + strconv.Itoa(cfg.APIPort))
 
 	cm.Wait()

@@ -7,7 +7,7 @@ ObserverKeys = [
 ]
 Port = 41000
 APIPort = 48000
-StoreRoot = "./ndata"
+StoreRoot = "./_test"
 BackendVersion = 1
 RLogHost = ""
 RLogPath = ""
