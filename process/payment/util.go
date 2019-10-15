@@ -1,8 +1,8 @@
 package payment
 
 import (
-	"github.com/fletaio/fleta/common/binutil"
-	"github.com/fletaio/fleta/common/hash"
+	"github.com/fletaio/fleta_testnet/common/binutil"
+	"github.com/fletaio/fleta_testnet/common/hash"
 )
 
 // Topic returns the topic of the name

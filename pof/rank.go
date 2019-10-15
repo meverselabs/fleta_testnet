@@ -5,10 +5,10 @@ import (
 	"encoding/hex"
 	"reflect"
 
-	"github.com/fletaio/fleta/common"
-	"github.com/fletaio/fleta/common/binutil"
-	"github.com/fletaio/fleta/common/hash"
-	"github.com/fletaio/fleta/encoding"
+	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/common/binutil"
+	"github.com/fletaio/fleta_testnet/common/hash"
+	"github.com/fletaio/fleta_testnet/encoding"
 )
 
 func init() {

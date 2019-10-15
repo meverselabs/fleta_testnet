@@ -3,7 +3,7 @@ package p2p
 import (
 	"time"
 
-	"github.com/fletaio/fleta/common"
+	"github.com/fletaio/fleta_testnet/common"
 )
 
 func (nd *Node) sendMessage(Priority int, Target common.PublicHash, m interface{}) {

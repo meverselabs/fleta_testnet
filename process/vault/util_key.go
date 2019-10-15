@@ -1,8 +1,8 @@
 package vault
 
 import (
-	"github.com/fletaio/fleta/common"
-	"github.com/fletaio/fleta/common/binutil"
+	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/common/binutil"
 )
 
 // tags

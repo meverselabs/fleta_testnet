@@ -1,6 +1,6 @@
 package main
 
-import "github.com/fletaio/fleta/common"
+import "github.com/fletaio/fleta_testnet/common"
 
 var Addrs = []common.Address{}
 

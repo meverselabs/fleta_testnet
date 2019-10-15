@@ -7,9 +7,9 @@ import (
 	"io/ioutil"
 
 	"github.com/bluele/gcache"
-	"github.com/fletaio/fleta/common/binutil"
-	"github.com/fletaio/fleta/core/types"
-	"github.com/fletaio/fleta/encoding"
+	"github.com/fletaio/fleta_testnet/common/binutil"
+	"github.com/fletaio/fleta_testnet/core/types"
+	"github.com/fletaio/fleta_testnet/encoding"
 )
 
 // ReadUint64 reads a uint64 number from the reader

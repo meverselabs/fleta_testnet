@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fletaio/fleta/common/binutil"
+	"github.com/fletaio/fleta_testnet/common/binutil"
 )
 
 // TCPPeer manages send and recv of the connection

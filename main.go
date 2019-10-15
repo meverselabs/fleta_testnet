@@ -1,4 +1,4 @@
-package main // imports "github.com/fletaio/fleta"
+package main // imports "github.com/fletaio/fleta_testnet"
 
 import (
 	"encoding/hex"
@@ -6,25 +6,25 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/fletaio/fleta/core/types"
+	"github.com/fletaio/fleta_testnet/core/types"
 
-	"github.com/fletaio/fleta/core/pile"
+	"github.com/fletaio/fleta_testnet/core/pile"
 
-	"github.com/fletaio/fleta/cmd/app"
-	"github.com/fletaio/fleta/cmd/config"
-	"github.com/fletaio/fleta/common"
-	"github.com/fletaio/fleta/common/key"
-	"github.com/fletaio/fleta/core/backend"
-	_ "github.com/fletaio/fleta/core/backend/badger_driver"
-	_ "github.com/fletaio/fleta/core/backend/buntdb_driver"
-	"github.com/fletaio/fleta/core/chain"
-	"github.com/fletaio/fleta/pof"
-	"github.com/fletaio/fleta/process/admin"
-	"github.com/fletaio/fleta/process/formulator"
-	"github.com/fletaio/fleta/process/gateway"
-	"github.com/fletaio/fleta/process/payment"
-	"github.com/fletaio/fleta/process/vault"
-	"github.com/fletaio/fleta/service/apiserver"
+	"github.com/fletaio/fleta_testnet/cmd/app"
+	"github.com/fletaio/fleta_testnet/cmd/config"
+	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/common/key"
+	"github.com/fletaio/fleta_testnet/core/backend"
+	_ "github.com/fletaio/fleta_testnet/core/backend/badger_driver"
+	_ "github.com/fletaio/fleta_testnet/core/backend/buntdb_driver"
+	"github.com/fletaio/fleta_testnet/core/chain"
+	"github.com/fletaio/fleta_testnet/pof"
+	"github.com/fletaio/fleta_testnet/process/admin"
+	"github.com/fletaio/fleta_testnet/process/formulator"
+	"github.com/fletaio/fleta_testnet/process/gateway"
+	"github.com/fletaio/fleta_testnet/process/payment"
+	"github.com/fletaio/fleta_testnet/process/vault"
+	"github.com/fletaio/fleta_testnet/service/apiserver"
 )
 
 // Config is a configuration for the cmd

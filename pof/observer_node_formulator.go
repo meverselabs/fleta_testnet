@@ -1,10 +1,10 @@
 package pof
 
 import (
-	"github.com/fletaio/fleta/common/rlog"
-	"github.com/fletaio/fleta/core/chain"
-	"github.com/fletaio/fleta/service/p2p"
-	"github.com/fletaio/fleta/service/p2p/peer"
+	"github.com/fletaio/fleta_testnet/common/rlog"
+	"github.com/fletaio/fleta_testnet/core/chain"
+	"github.com/fletaio/fleta_testnet/service/p2p"
+	"github.com/fletaio/fleta_testnet/service/p2p/peer"
 )
 
 // OnFormulatorConnected is called after a new formulator peer is connected

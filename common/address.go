@@ -3,7 +3,7 @@ package common
 import (
 	"bytes"
 
-	"github.com/fletaio/fleta/common/binutil"
+	"github.com/fletaio/fleta_testnet/common/binutil"
 	"github.com/mr-tron/base58/base58"
 )
 

@@ -4,8 +4,8 @@ import (
 	"log"
 	"sync"
 
-	"github.com/fletaio/fleta/common/binutil"
-	"github.com/fletaio/fleta/common/hash"
+	"github.com/fletaio/fleta_testnet/common/binutil"
+	"github.com/fletaio/fleta_testnet/common/hash"
 )
 
 var lock sync.Mutex

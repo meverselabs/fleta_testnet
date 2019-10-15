@@ -4,10 +4,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/fletaio/fleta/common"
-	"github.com/fletaio/fleta/core/types"
-	"github.com/fletaio/fleta/encoding"
-	"github.com/fletaio/fleta/service/p2p"
+	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/core/types"
+	"github.com/fletaio/fleta_testnet/encoding"
+	"github.com/fletaio/fleta_testnet/service/p2p"
 )
 
 func (ob *ObserverNode) sendMessage(Priority int, Address common.Address, m interface{}) {
