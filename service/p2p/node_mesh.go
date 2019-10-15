@@ -154,12 +154,11 @@ func (ms *NodeMesh) GetPeer(ID string) peer.Peer {
 	} else if sp, has := ms.serverPeerMap[ID]; has {
 		return sp
 	}
-
 	return nil
 }
 
 // SendTo sends a message to the node
-func (ms *NodeMesh) SendTo(pubhash common.PublicHash, bs []byte) error {
+func (ms *NodeMesh) SendTo(pubhash common.PublicHash, bs []byte) {
 	ID := string(pubhash[:])
 
 	ms.Lock()
@@ -170,12 +169,10 @@ func (ms *NodeMesh) SendTo(pubhash common.PublicHash, bs []byte) error {
 		p = sp
 	}
 	ms.Unlock()
-	if p == nil {
-		return ErrNotExistPeer
-	}
 
-	p.SendPacket(bs)
-	return nil
+	if p != nil {
+		p.SendPacket(bs)
+	}
 }
 
 // ExceptCastLimit sends a message within the given number except the peer

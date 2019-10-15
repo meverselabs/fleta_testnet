@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"bytes"
 	"net"
 	"sync/atomic"
 	"time"
@@ -128,19 +129,15 @@ func (p *TCPPeer) ReadPacket() ([]byte, error) {
 
 // SendPacket sends packet to the WebsocketPeer
 func (p *TCPPeer) SendPacket(bs []byte) {
+	var buffer bytes.Buffer
+	buffer.Write(bs[4:6])
+	buffer.Write(bs[0:4])
+	buffer.Write(bs[6:])
 	if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		p.Close()
 		return
 	}
-	if _, err := p.conn.Write(bs[4:6]); err != nil {
-		p.Close()
-		return
-	}
-	if _, err := p.conn.Write(bs[0:4]); err != nil {
-		p.Close()
-		return
-	}
-	if _, err := p.conn.Write(bs[6:]); err != nil {
+	if _, err := p.conn.Write(buffer.Bytes()); err != nil {
 		p.Close()
 		return
 	}

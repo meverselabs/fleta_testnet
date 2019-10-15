@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"bytes"
+	"log"
 	"runtime"
 	"sync"
 	"time"
@@ -180,10 +181,12 @@ func (nd *Node) Run(BindAddress string) {
 					item := v.(*RecvMessageItem)
 					m, err := PacketToMessage(item.Packet)
 					if err != nil {
+						log.Println("PacketToMessage", err)
 						nd.ms.RemovePeer(item.PeerID)
 						break
 					}
 					if err := nd.handlePeerMessage(item.PeerID, m); err != nil {
+						log.Println("handlePeerMessage", err)
 						nd.ms.RemovePeer(item.PeerID)
 						break
 					}
@@ -208,9 +211,7 @@ func (nd *Node) Run(BindAddress string) {
 					hasMessage = true
 					item := v.(*SendMessageItem)
 					if len(item.Packet) > 0 {
-						if err := nd.ms.SendTo(item.Target, item.Packet); err != nil {
-							nd.ms.RemovePeer(string(item.Target[:]))
-						}
+						nd.ms.SendTo(item.Target, item.Packet)
 					} else {
 						bs := MessageToPacket(item.Message)
 
@@ -225,9 +226,7 @@ func (nd *Node) Run(BindAddress string) {
 							if item.Limit > 0 {
 								nd.ms.ExceptCastLimit(string(item.Target[:]), bs, item.Limit)
 							} else {
-								if err := nd.ms.SendTo(item.Target, bs); err != nil {
-									nd.ms.RemovePeer(string(item.Target[:]))
-								}
+								nd.ms.SendTo(item.Target, bs)
 							}
 						}
 					}
