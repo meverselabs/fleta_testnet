@@ -14,16 +14,16 @@ func (fr *FormulatorNode) sendMessage(Priority int, Target common.PublicHash, m 
 	})
 }
 
-func (fr *FormulatorNode) sendMessagePacket(Priority int, Target common.PublicHash, raw []byte) {
+func (fr *FormulatorNode) sendMessagePacket(Priority int, Target common.PublicHash, bs []byte) {
 	fr.sendQueues[Priority].Push(&p2p.SendMessageItem{
 		Target: Target,
-		Packet: raw,
+		Packet: bs,
 	})
 }
 
-func (fr *FormulatorNode) broadcastMessage(Priority int, m interface{}) {
+func (fr *FormulatorNode) broadcastMessagePacket(Priority int, bs []byte) {
 	fr.sendQueues[Priority].Push(&p2p.SendMessageItem{
-		Message: m,
+		Packet: bs,
 	})
 }
 
@@ -50,8 +50,9 @@ func (fr *FormulatorNode) broadcastStatus() error {
 		Height:   height,
 		LastHash: lastHash,
 	}
-	fr.ms.BroadcastMessage(nm)
-	fr.broadcastMessage(0, nm)
+	bs := p2p.MessageToPacket(nm)
+	fr.ms.BroadcastPacket(bs)
+	fr.broadcastMessagePacket(0, bs)
 	return nil
 }
 
@@ -76,7 +77,7 @@ func (fr *FormulatorNode) sendRequestBlockToNode(TargetPubHash common.PublicHash
 		Height: Height,
 		Count:  Count,
 	}
-	fr.sendMessage(0, TargetPubHash, p2p.MessageToPacket(nm))
+	fr.sendMessage(0, TargetPubHash, nm)
 	for i := uint32(0); i < uint32(Count); i++ {
 		fr.requestNodeTimer.Add(Height+i, 10*time.Second, string(TargetPubHash[:]))
 	}

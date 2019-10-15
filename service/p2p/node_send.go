@@ -65,7 +65,7 @@ func (nd *Node) broadcastStatus() error {
 		Height:   height,
 		LastHash: lastHash,
 	}
-	nd.ms.BroadcastMessage(nm)
+	nd.ms.BroadcastPacket(MessageToPacket(nm))
 	return nil
 }
 

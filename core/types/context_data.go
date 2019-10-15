@@ -477,106 +477,108 @@ func (ctd *ContextData) Dump() string {
 	buffer.WriteString("PrevHash\n")
 	lastHash := ctd.loader.LastHash()
 	buffer.WriteString(lastHash.String())
-	buffer.WriteString("\n")
-	buffer.WriteString("SeqMap\n")
-	ctd.SeqMap.EachAll(func(addr common.Address, seq uint64) bool {
-		buffer.WriteString(addr.String())
-		buffer.WriteString(": ")
-		buffer.WriteString(strconv.FormatUint(seq, 10))
+	if false {
 		buffer.WriteString("\n")
-		return true
-	})
-	buffer.WriteString("\n")
-	buffer.WriteString("AccountMap\n")
-	ctd.AccountMap.EachAll(func(addr common.Address, acc Account) bool {
-		buffer.WriteString(addr.String())
-		buffer.WriteString(": ")
-		buffer.WriteString(encoding.Hash(acc).String())
-		buffer.WriteString("\n")
-		return true
-	})
-	buffer.WriteString("\n")
-	buffer.WriteString("DeletedAccountMap\n")
-	ctd.DeletedAccountMap.EachAll(func(addr common.Address, acc Account) bool {
-		buffer.WriteString(addr.String())
-		buffer.WriteString("\n")
-		return true
-	})
-	buffer.WriteString("\n")
-	buffer.WriteString("AccountNameMap\n")
-	ctd.AccountNameMap.EachAll(func(key string, addr common.Address) bool {
-		buffer.WriteString(key)
-		buffer.WriteString(": ")
-		buffer.WriteString(addr.String())
-		buffer.WriteString("\n")
-		return true
-	})
-	buffer.WriteString("\n")
-	buffer.WriteString("AccountDataMap\n")
-	ctd.AccountDataMap.EachAll(func(key string, value []byte) bool {
-		buffer.WriteString(hex.EncodeToString([]byte(key)) + ":" + hash.Hash([]byte(key)).String())
-		buffer.WriteString(": ")
-		buffer.WriteString(hex.EncodeToString(value) + ":" + hash.Hash(value).String())
-		buffer.WriteString("\n")
-		return true
-	})
-	buffer.WriteString("\n")
-	buffer.WriteString("DeletedAccountDataMap\n")
-	ctd.DeletedAccountDataMap.EachAll(func(key string, value bool) bool {
-		buffer.WriteString(hash.Hash([]byte(key)).String())
-		buffer.WriteString("\n")
-		return true
-	})
-	buffer.WriteString("\n")
-	buffer.WriteString("UTXOMap\n")
-	ctd.UTXOMap.EachAll(func(id uint64, utxo *UTXO) bool {
-		buffer.WriteString(strconv.FormatUint(id, 10))
-		buffer.WriteString(": ")
-		buffer.WriteString(encoding.Hash(utxo).String())
-		buffer.WriteString("\n")
-		return true
-	})
-	buffer.WriteString("\n")
-	buffer.WriteString("CreatedUTXOMap\n")
-	ctd.CreatedUTXOMap.EachAll(func(id uint64, vout *TxOut) bool {
-		buffer.WriteString(strconv.FormatUint(id, 10))
-		buffer.WriteString(": ")
-		buffer.WriteString(encoding.Hash(vout).String())
-		buffer.WriteString("\n")
-		return true
-	})
-	buffer.WriteString("\n")
-	buffer.WriteString("DeletedUTXOMap\n")
-	ctd.DeletedUTXOMap.EachAll(func(id uint64, utxo *UTXO) bool {
-		buffer.WriteString(strconv.FormatUint(id, 10))
-		buffer.WriteString("\n")
-		return true
-	})
-	buffer.WriteString("\n")
-	buffer.WriteString("Events\n")
-	{
-		for _, e := range ctd.Events {
-			buffer.WriteString(encoding.Hash(e).String())
+		buffer.WriteString("SeqMap\n")
+		ctd.SeqMap.EachAll(func(addr common.Address, seq uint64) bool {
+			buffer.WriteString(addr.String())
+			buffer.WriteString(": ")
+			buffer.WriteString(strconv.FormatUint(seq, 10))
 			buffer.WriteString("\n")
+			return true
+		})
+		buffer.WriteString("\n")
+		buffer.WriteString("AccountMap\n")
+		ctd.AccountMap.EachAll(func(addr common.Address, acc Account) bool {
+			buffer.WriteString(addr.String())
+			buffer.WriteString(": ")
+			buffer.WriteString(encoding.Hash(acc).String())
+			buffer.WriteString("\n")
+			return true
+		})
+		buffer.WriteString("\n")
+		buffer.WriteString("DeletedAccountMap\n")
+		ctd.DeletedAccountMap.EachAll(func(addr common.Address, acc Account) bool {
+			buffer.WriteString(addr.String())
+			buffer.WriteString("\n")
+			return true
+		})
+		buffer.WriteString("\n")
+		buffer.WriteString("AccountNameMap\n")
+		ctd.AccountNameMap.EachAll(func(key string, addr common.Address) bool {
+			buffer.WriteString(key)
+			buffer.WriteString(": ")
+			buffer.WriteString(addr.String())
+			buffer.WriteString("\n")
+			return true
+		})
+		buffer.WriteString("\n")
+		buffer.WriteString("AccountDataMap\n")
+		ctd.AccountDataMap.EachAll(func(key string, value []byte) bool {
+			buffer.WriteString(hex.EncodeToString([]byte(key)) + ":" + hash.Hash([]byte(key)).String())
+			buffer.WriteString(": ")
+			buffer.WriteString(hex.EncodeToString(value) + ":" + hash.Hash(value).String())
+			buffer.WriteString("\n")
+			return true
+		})
+		buffer.WriteString("\n")
+		buffer.WriteString("DeletedAccountDataMap\n")
+		ctd.DeletedAccountDataMap.EachAll(func(key string, value bool) bool {
+			buffer.WriteString(hash.Hash([]byte(key)).String())
+			buffer.WriteString("\n")
+			return true
+		})
+		buffer.WriteString("\n")
+		buffer.WriteString("UTXOMap\n")
+		ctd.UTXOMap.EachAll(func(id uint64, utxo *UTXO) bool {
+			buffer.WriteString(strconv.FormatUint(id, 10))
+			buffer.WriteString(": ")
+			buffer.WriteString(encoding.Hash(utxo).String())
+			buffer.WriteString("\n")
+			return true
+		})
+		buffer.WriteString("\n")
+		buffer.WriteString("CreatedUTXOMap\n")
+		ctd.CreatedUTXOMap.EachAll(func(id uint64, vout *TxOut) bool {
+			buffer.WriteString(strconv.FormatUint(id, 10))
+			buffer.WriteString(": ")
+			buffer.WriteString(encoding.Hash(vout).String())
+			buffer.WriteString("\n")
+			return true
+		})
+		buffer.WriteString("\n")
+		buffer.WriteString("DeletedUTXOMap\n")
+		ctd.DeletedUTXOMap.EachAll(func(id uint64, utxo *UTXO) bool {
+			buffer.WriteString(strconv.FormatUint(id, 10))
+			buffer.WriteString("\n")
+			return true
+		})
+		buffer.WriteString("\n")
+		buffer.WriteString("Events\n")
+		{
+			for _, e := range ctd.Events {
+				buffer.WriteString(encoding.Hash(e).String())
+				buffer.WriteString("\n")
+			}
 		}
+		buffer.WriteString("\n")
+		buffer.WriteString("ProcessDataMap\n")
+		ctd.ProcessDataMap.EachAll(func(key string, value []byte) bool {
+			//buffer.WriteString(hash.Hash([]byte(key)).String())
+			buffer.WriteString(hex.EncodeToString([]byte(key)))
+			buffer.WriteString(": ")
+			//buffer.WriteString(hash.Hash(value).String())
+			buffer.WriteString(hex.EncodeToString(value))
+			buffer.WriteString("\n")
+			return true
+		})
+		buffer.WriteString("\n")
+		buffer.WriteString("DeletedProcessDataMap\n")
+		ctd.DeletedProcessDataMap.EachAll(func(key string, value bool) bool {
+			buffer.WriteString(hash.Hash([]byte(key)).String())
+			buffer.WriteString("\n")
+			return true
+		})
 	}
-	buffer.WriteString("\n")
-	buffer.WriteString("ProcessDataMap\n")
-	ctd.ProcessDataMap.EachAll(func(key string, value []byte) bool {
-		//buffer.WriteString(hash.Hash([]byte(key)).String())
-		buffer.WriteString(hex.EncodeToString([]byte(key)))
-		buffer.WriteString(": ")
-		//buffer.WriteString(hash.Hash(value).String())
-		buffer.WriteString(hex.EncodeToString(value))
-		buffer.WriteString("\n")
-		return true
-	})
-	buffer.WriteString("\n")
-	buffer.WriteString("DeletedProcessDataMap\n")
-	ctd.DeletedProcessDataMap.EachAll(func(key string, value bool) bool {
-		buffer.WriteString(hash.Hash([]byte(key)).String())
-		buffer.WriteString("\n")
-		return true
-	})
 	return buffer.String()
 }

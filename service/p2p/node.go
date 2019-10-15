@@ -82,7 +82,6 @@ func NewNode(key key.Key, SeedNodeMap map[common.PublicHash]string, cn *chain.Ch
 // Init initializes node
 func (nd *Node) Init() error {
 	fc := encoding.Factory("message")
-	fc.Register(PingMessageType, &PingMessage{})
 	fc.Register(StatusMessageType, &StatusMessage{})
 	fc.Register(RequestMessageType, &RequestMessage{})
 	fc.Register(BlockMessageType, &BlockMessage{})
@@ -222,7 +221,7 @@ func (nd *Node) Run(BindAddress string) {
 							if item.Limit > 0 {
 								nd.ms.ExceptCastLimit("", bs, item.Limit)
 							} else {
-								nd.ms.BroadcastMessage(bs)
+								nd.ms.BroadcastPacket(bs)
 							}
 						} else {
 							if item.Limit > 0 {
@@ -361,60 +360,9 @@ func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 		if msg.Height > Height {
 			return nil
 		}
-		var bs []byte
-		if msg.Height%10 == 0 && msg.Count == 10 && msg.Height+uint32(msg.Count) <= Height {
-			value, err := nd.batchCache.Get(msg.Height)
-			if err != nil {
-				list := make([]*types.Block, 0, 10)
-				for i := uint32(0); i < uint32(msg.Count); i++ {
-					if msg.Height+i > Height {
-						break
-					}
-					b, err := nd.cn.Provider().Block(msg.Height + i)
-					if err != nil {
-						return err
-					}
-					list = append(list, b)
-				}
-				sm := &BlockMessage{
-					Blocks: list,
-				}
-				bs = MessageToPacket(sm)
-				nd.batchCache.Set(msg.Height, bs)
-			} else {
-				bs = value.([]byte)
-			}
-		} else if msg.Count == 1 {
-			value, err := nd.singleCache.Get(msg.Height)
-			if err != nil {
-				b, err := nd.cn.Provider().Block(msg.Height)
-				if err != nil {
-					return err
-				}
-				sm := &BlockMessage{
-					Blocks: []*types.Block{b},
-				}
-				bs = MessageToPacket(sm)
-				nd.singleCache.Set(msg.Height, bs)
-			} else {
-				bs = value.([]byte)
-			}
-		} else {
-			list := make([]*types.Block, 0, 10)
-			for i := uint32(0); i < uint32(msg.Count); i++ {
-				if msg.Height+i > Height {
-					break
-				}
-				b, err := nd.cn.Provider().Block(msg.Height + i)
-				if err != nil {
-					return err
-				}
-				list = append(list, b)
-			}
-			sm := &BlockMessage{
-				Blocks: list,
-			}
-			bs = MessageToPacket(sm)
+		bs, err := BlockPacketWithCache(msg, nd.cn.Provider(), nd.batchCache, nd.singleCache)
+		if err != nil {
+			return err
 		}
 		nd.sendMessagePacket(0, SenderPublicHash, bs)
 		return nil

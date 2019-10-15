@@ -108,8 +108,8 @@ func (st *Store) TargetHeight() uint32 {
 	return st.Height() + 1
 }
 
-// NewContextWrapper returns the context wrapper of the chain
-func (st *Store) NewContextWrapper(pid uint8) *types.ContextWrapper {
+// NewLoaderWrapper returns the loader wrapper of the chain
+func (st *Store) NewLoaderWrapper(pid uint8) types.LoaderWrapper {
 	return types.NewContextWrapper(pid, types.NewContext(st))
 }
 

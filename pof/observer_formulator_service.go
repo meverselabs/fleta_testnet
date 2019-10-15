@@ -67,7 +67,7 @@ func (ms *FormulatorService) RemovePeer(ID string) {
 }
 
 // SendTo sends a message to the formulator
-func (ms *FormulatorService) SendTo(addr common.Address, m interface{}) error {
+func (ms *FormulatorService) SendTo(addr common.Address, bs []byte) error {
 	ms.Lock()
 	p, has := ms.peerMap[string(addr[:])]
 	ms.Unlock()
@@ -75,23 +75,7 @@ func (ms *FormulatorService) SendTo(addr common.Address, m interface{}) error {
 		return ErrNotExistFormulatorPeer
 	}
 
-	p.SendPacket(p2p.MessageToPacket(m))
-	return nil
-}
-
-// BroadcastMessage sends a message to all peers
-func (ms *FormulatorService) BroadcastMessage(m interface{}) error {
-	peers := []peer.Peer{}
-	ms.Lock()
-	for _, p := range ms.peerMap {
-		peers = append(peers, p)
-	}
-	ms.Unlock()
-
-	bs := p2p.MessageToPacket(m)
-	for _, p := range peers {
-		p.SendPacket(bs)
-	}
+	p.SendPacket(bs)
 	return nil
 }
 

@@ -6,7 +6,9 @@ import (
 	"io"
 	"io/ioutil"
 
+	"github.com/bluele/gcache"
 	"github.com/fletaio/fleta/common/binutil"
+	"github.com/fletaio/fleta/core/types"
 	"github.com/fletaio/fleta/encoding"
 )
 
@@ -144,6 +146,10 @@ func FillBytes(r io.Reader, bs []byte) (int64, error) {
 
 // MessageToPacket returns packet of the message
 func MessageToPacket(m interface{}) []byte {
+	if _, is := m.([]byte); is {
+		panic("")
+	}
+
 	fc := encoding.Factory("message")
 	t, err := fc.TypeOf(m)
 	if err != nil {
@@ -152,9 +158,8 @@ func MessageToPacket(m interface{}) []byte {
 	var buffer bytes.Buffer
 	buffer.Write(make([]byte, 4))
 	buffer.Write(binutil.LittleEndian.Uint16ToBytes(t))
-	//if _, is := m.(*BlockMessage); is {
-	if true {
-		//buffer.Write([]byte{1})
+	if _, is := m.(*BlockMessage); is {
+		buffer.Write([]byte{1})
 		zw := gzip.NewWriter(&buffer)
 		enc := encoding.NewEncoder(zw)
 		if err := enc.Encode(m); err != nil {
@@ -163,15 +168,14 @@ func MessageToPacket(m interface{}) []byte {
 		zw.Flush()
 		zw.Close()
 	} else {
-		//buffer.Write([]byte{0})
+		buffer.Write([]byte{0})
 		enc := encoding.NewEncoder(&buffer)
 		if err := enc.Encode(m); err != nil {
 			panic(err)
 		}
 	}
 	bs := buffer.Bytes()
-	//binutil.LittleEndian.PutUint32(bs, uint32(len(bs)-7))
-	binutil.LittleEndian.PutUint32(bs, uint32(len(bs)-6))
+	binutil.LittleEndian.PutUint32(bs, uint32(len(bs)-4))
 	return bs
 }
 
@@ -181,13 +185,11 @@ func PacketMessageType(bs []byte) uint16 {
 
 func PacketToMessage(bs []byte) (interface{}, error) {
 	t := PacketMessageType(bs)
-	//compressed := (bs[6] == 1)
-	compressed := true
+	compressed := (bs[6] == 1)
 
 	var mbs []byte
 	if compressed {
-		//zr, err := gzip.NewReader(bytes.NewReader(bs[7:]))
-		zr, err := gzip.NewReader(bytes.NewReader(bs[6:]))
+		zr, err := gzip.NewReader(bytes.NewReader(bs[7:]))
 		if err != nil {
 			return nil, err
 		}
@@ -199,8 +201,7 @@ func PacketToMessage(bs []byte) (interface{}, error) {
 		}
 		mbs = v
 	} else {
-		//mbs = bs[7:]
-		mbs = bs[6:]
+		mbs = bs[7:]
 	}
 
 	fc := encoding.Factory("message")
@@ -212,4 +213,64 @@ func PacketToMessage(bs []byte) (interface{}, error) {
 		return nil, err
 	}
 	return m, nil
+}
+
+func BlockPacketWithCache(msg *RequestMessage, provider types.Provider, batchCache gcache.Cache, singleCache gcache.Cache) ([]byte, error) {
+	Height := provider.Height()
+	var bs []byte
+	if msg.Height%10 == 0 && msg.Count == 10 && msg.Height+uint32(msg.Count) <= Height {
+		value, err := batchCache.Get(msg.Height)
+		if err != nil {
+			list := make([]*types.Block, 0, 10)
+			for i := uint32(0); i < uint32(msg.Count); i++ {
+				if msg.Height+i > Height {
+					break
+				}
+				b, err := provider.Block(msg.Height + i)
+				if err != nil {
+					return nil, err
+				}
+				list = append(list, b)
+			}
+			sm := &BlockMessage{
+				Blocks: list,
+			}
+			bs = MessageToPacket(sm)
+			batchCache.Set(msg.Height, bs)
+		} else {
+			bs = value.([]byte)
+		}
+	} else if msg.Count == 1 {
+		value, err := singleCache.Get(msg.Height)
+		if err != nil {
+			b, err := provider.Block(msg.Height)
+			if err != nil {
+				return nil, err
+			}
+			sm := &BlockMessage{
+				Blocks: []*types.Block{b},
+			}
+			bs = MessageToPacket(sm)
+			singleCache.Set(msg.Height, bs)
+		} else {
+			bs = value.([]byte)
+		}
+	} else {
+		list := make([]*types.Block, 0, 10)
+		for i := uint32(0); i < uint32(msg.Count); i++ {
+			if msg.Height+i > Height {
+				break
+			}
+			b, err := provider.Block(msg.Height + i)
+			if err != nil {
+				return nil, err
+			}
+			list = append(list, b)
+		}
+		sm := &BlockMessage{
+			Blocks: list,
+		}
+		bs = MessageToPacket(sm)
+	}
+	return bs, nil
 }

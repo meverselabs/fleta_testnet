@@ -202,11 +202,6 @@ func (ms *NodeMesh) ExceptCastLimit(ID string, bs []byte, Limit int) {
 	}
 }
 
-// BroadcastMessage sends a message to all peers
-func (ms *NodeMesh) BroadcastMessage(m interface{}) {
-	ms.BroadcastPacket(MessageToPacket(m))
-}
-
 // BroadcastPacket sends a packet to all peers
 func (ms *NodeMesh) BroadcastPacket(bs []byte) {
 	peerMap := map[string]peer.Peer{}

@@ -3,7 +3,6 @@ package pof
 import (
 	"github.com/fletaio/fleta/common/rlog"
 	"github.com/fletaio/fleta/core/chain"
-	"github.com/fletaio/fleta/core/types"
 	"github.com/fletaio/fleta/service/p2p"
 	"github.com/fletaio/fleta/service/p2p/peer"
 )
@@ -32,18 +31,36 @@ func (ob *ObserverNode) OnFormulatorDisconnected(p peer.Peer) {
 }
 
 func (ob *ObserverNode) onFormulatorRecv(p peer.Peer, bs []byte) error {
-	m, err := p2p.PacketToMessage(bs)
-	if err != nil {
-		return err
+	item := &p2p.RecvMessageItem{
+		PeerID: p.ID(),
+		Packet: bs,
 	}
-	raw := bs
+	t := p2p.PacketMessageType(bs)
+	switch t {
+	case BlockGenMessageType:
+		ob.recvQueues[0].Push(item)
+	case p2p.RequestMessageType:
+		if ob.round.MinRoundVoteAck != nil && string(ob.round.MinRoundVoteAck.Formulator[:]) == p.ID() {
+			ob.recvQueues[0].Push(item)
+		} else {
+			ob.recvQueues[1].Push(item)
+		}
+	case p2p.StatusMessageType:
+		ob.recvQueues[1].Push(item)
+	default:
+		panic(p2p.ErrUnknownMessage) //TEMP
+		return p2p.ErrUnknownMessage
+	}
+	return nil
+}
 
+func (ob *ObserverNode) handleFormulatorMessage(p peer.Peer, m interface{}, bs []byte) error {
 	cp := ob.cs.cn.Provider()
 	switch msg := m.(type) {
 	case *BlockGenMessage:
 		ob.messageQueue.Push(&messageItem{
 			Message: msg,
-			Raw:     raw,
+			Packet:  bs,
 		})
 	case *p2p.RequestMessage:
 		ob.statusLock.Lock()
@@ -96,36 +113,15 @@ func (ob *ObserverNode) onFormulatorRecv(p peer.Peer, bs []byte) error {
 			if msg.Count > 10 {
 				msg.Count = 10
 			}
-			Height := cp.Height()
+			Height := ob.cs.cn.Provider().Height()
 			if msg.Height > Height {
 				return nil
 			}
-			list := make([]*types.Block, 0, 10)
-			for i := uint32(0); i < uint32(msg.Count); i++ {
-				if msg.Height+i > Height {
-					break
-				}
-				b, err := cp.Block(msg.Height + i)
-				if err != nil {
-					return err
-				}
-				list = append(list, b)
+			bs, err := p2p.BlockPacketWithCache(msg, ob.cs.cn.Provider(), ob.batchCache, ob.singleCache)
+			if err != nil {
+				return err
 			}
-			sm := &p2p.BlockMessage{
-				Blocks: list,
-			}
-			p.SendPacket(p2p.MessageToPacket(sm))
-
-			if len(list) > 0 {
-				LastHeight := list[len(list)-1].Header.Height
-				ob.statusLock.Lock()
-				if status, has := ob.statusMap[p.ID()]; has {
-					if status.Height < LastHeight {
-						status.Height = LastHeight
-					}
-				}
-				ob.statusLock.Unlock()
-			}
+			p.SendPacket(bs)
 		}
 	case *p2p.StatusMessage:
 		ob.statusLock.Lock()

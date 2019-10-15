@@ -119,7 +119,7 @@ func (ms *ObserverNodeMesh) removePeerInMap(ID string, peerMap map[string]peer.P
 }
 
 // SendTo sends a message to the observer
-func (ms *ObserverNodeMesh) SendTo(pubhash common.PublicHash, m interface{}) error {
+func (ms *ObserverNodeMesh) SendTo(pubhash common.PublicHash, bs []byte) error {
 	ID := string(pubhash[:])
 
 	ms.Lock()
@@ -134,12 +134,12 @@ func (ms *ObserverNodeMesh) SendTo(pubhash common.PublicHash, m interface{}) err
 		return ErrNotExistObserverPeer
 	}
 
-	p.SendPacket(p2p.MessageToPacket(m))
+	p.SendPacket(bs)
 	return nil
 }
 
 // SendAnyone sends a message to the one of observers
-func (ms *ObserverNodeMesh) SendAnyone(m interface{}) error {
+func (ms *ObserverNodeMesh) SendAnyone(bs []byte) error {
 	ms.Lock()
 	var p peer.Peer
 	for _, v := range ms.clientPeerMap {
@@ -157,7 +157,7 @@ func (ms *ObserverNodeMesh) SendAnyone(m interface{}) error {
 		return ErrNotExistObserverPeer
 	}
 
-	p.SendPacket(p2p.MessageToPacket(m))
+	p.SendPacket(bs)
 	return nil
 }
 
@@ -176,25 +176,6 @@ func (ms *ObserverNodeMesh) BroadcastPacket(bs []byte) {
 	for _, p := range peerMap {
 		p.SendPacket(bs)
 	}
-}
-
-// BroadcastMessage sends a message to all peers
-func (ms *ObserverNodeMesh) BroadcastMessage(m interface{}) error {
-	peerMap := map[string]peer.Peer{}
-	ms.Lock()
-	for _, p := range ms.clientPeerMap {
-		peerMap[p.ID()] = p
-	}
-	for _, p := range ms.serverPeerMap {
-		peerMap[p.ID()] = p
-	}
-	ms.Unlock()
-
-	bs := p2p.MessageToPacket(m)
-	for _, p := range peerMap {
-		p.SendPacket(bs)
-	}
-	return nil
 }
 
 func (ms *ObserverNodeMesh) client(Address string, TargetPubHash common.PublicHash) error {

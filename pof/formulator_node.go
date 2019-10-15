@@ -7,6 +7,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fletaio/fleta/common/amount"
+	"github.com/fletaio/fleta/process/vault"
+
 	"github.com/bluele/gcache"
 
 	"github.com/fletaio/fleta/common"
@@ -21,46 +24,57 @@ import (
 	"github.com/fletaio/fleta/service/p2p"
 )
 
+type genItem struct {
+	BlockGen *BlockGenMessage
+	ObSign   *BlockObSignMessage
+	Context  *types.Context
+}
+
 // FormulatorConfig defines configuration of the formulator
 type FormulatorConfig struct {
 	Formulator              common.Address
 	MaxTransactionsPerBlock int
+	Addrs                   []common.Address
 }
 
 // FormulatorNode procudes a block by the consensus
 type FormulatorNode struct {
 	sync.Mutex
-	Config               *FormulatorConfig
-	cs                   *Consensus
-	ms                   *FormulatorNodeMesh
-	nm                   *p2p.NodeMesh
-	key                  key.Key
-	ndkey                key.Key
-	myPublicHash         common.PublicHash
-	statusLock           sync.Mutex
-	genLock              sync.Mutex
-	lastGenMessages      []*BlockGenMessage
-	lastObSignMessageMap map[uint32]*BlockObSignMessage
-	lastContextes        []*types.Context
-	lastReqMessage       *BlockReqMessage
-	lastGenHeight        uint32
-	lastGenTime          int64
-	statusMap            map[string]*p2p.Status
-	obStatusMap          map[string]*p2p.Status
-	requestTimer         *p2p.RequestTimer
-	requestNodeTimer     *p2p.RequestTimer
-	requestLock          sync.RWMutex
-	blockQ               *queue.SortedQueue
-	txpool               *txpool.TransactionPool
-	txQ                  *queue.ExpireQueue
-	txWaitQ              *queue.LinkedQueue
-	recvQueues           []*queue.Queue
-	sendQueues           []*queue.Queue
-	singleCache          gcache.Cache
-	batchCache           gcache.Cache
-	isRunning            bool
-	closeLock            sync.RWMutex
-	isClose              bool
+	Config           *FormulatorConfig
+	cs               *Consensus
+	ms               *FormulatorNodeMesh
+	nm               *p2p.NodeMesh
+	key              key.Key
+	ndkey            key.Key
+	myPublicHash     common.PublicHash
+	frPublicHash     common.PublicHash
+	statusLock       sync.Mutex
+	genLock          sync.Mutex
+	lastGenItemMap   map[uint32]*genItem
+	lastReqMessage   *BlockReqMessage
+	lastGenHeight    uint32
+	lastGenTime      int64
+	statusMap        map[string]*p2p.Status
+	obStatusMap      map[string]*p2p.Status
+	requestTimer     *p2p.RequestTimer
+	requestNodeTimer *p2p.RequestTimer
+	requestLock      sync.RWMutex
+	blockQ           *queue.SortedQueue
+	txpool           *txpool.TransactionPool
+	txQ              *queue.ExpireQueue
+	txWaitQ          *queue.LinkedQueue
+	recvQueues       []*queue.Queue
+	sendQueues       []*queue.Queue
+	singleCache      gcache.Cache
+	batchCache       gcache.Cache
+	isRunning        bool
+	closeLock        sync.RWMutex
+	isClose          bool
+
+	//TEMP
+	Txs      []types.Transaction
+	Sigs     []common.Signature
+	TxHashes []hash.Hash256
 }
 
 // NewFormulatorNode returns a FormulatorNode
@@ -69,22 +83,21 @@ func NewFormulatorNode(Config *FormulatorConfig, key key.Key, ndkey key.Key, Net
 		Config.MaxTransactionsPerBlock = 10000
 	}
 	fr := &FormulatorNode{
-		Config:               Config,
-		cs:                   cs,
-		key:                  key,
-		ndkey:                ndkey,
-		myPublicHash:         common.NewPublicHash(ndkey.PublicKey()),
-		lastGenMessages:      []*BlockGenMessage{},
-		lastObSignMessageMap: map[uint32]*BlockObSignMessage{},
-		lastContextes:        []*types.Context{},
-		statusMap:            map[string]*p2p.Status{},
-		obStatusMap:          map[string]*p2p.Status{},
-		requestTimer:         p2p.NewRequestTimer(nil),
-		requestNodeTimer:     p2p.NewRequestTimer(nil),
-		blockQ:               queue.NewSortedQueue(),
-		txpool:               txpool.NewTransactionPool(),
-		txQ:                  queue.NewExpireQueue(),
-		txWaitQ:              queue.NewLinkedQueue(),
+		Config:           Config,
+		cs:               cs,
+		key:              key,
+		ndkey:            ndkey,
+		myPublicHash:     common.NewPublicHash(ndkey.PublicKey()),
+		frPublicHash:     common.NewPublicHash(key.PublicKey()),
+		lastGenItemMap:   map[uint32]*genItem{},
+		statusMap:        map[string]*p2p.Status{},
+		obStatusMap:      map[string]*p2p.Status{},
+		requestTimer:     p2p.NewRequestTimer(nil),
+		requestNodeTimer: p2p.NewRequestTimer(nil),
+		blockQ:           queue.NewSortedQueue(),
+		txpool:           txpool.NewTransactionPool(),
+		txQ:              queue.NewExpireQueue(),
+		txWaitQ:          queue.NewLinkedQueue(),
 		recvQueues: []*queue.Queue{
 			queue.NewQueue(), //block
 			queue.NewQueue(), //tx
@@ -105,7 +118,41 @@ func NewFormulatorNode(Config *FormulatorConfig, key key.Key, ndkey key.Key, Net
 	fr.txQ.AddGroup(3600 * time.Second)
 	fr.txQ.AddHandler(fr)
 	rlog.SetRLogAddress("fr:" + Config.Formulator.String())
+
+	fr.temp() // TEMP
 	return fr
+}
+
+func (fr *FormulatorNode) temp() {
+	fc := encoding.Factory("transaction")
+	t, err := fc.TypeOf(&vault.Transfer{})
+	if err != nil {
+		panic(err)
+	}
+	key, _ := key.NewMemoryKeyFromString("fd1167aad31c104c9fceb5b8a4ffd3e20a272af82176352d3b6ac236d02bafd4")
+	Txs := []types.Transaction{}
+	Sigs := []common.Signature{}
+	TxHashes := []hash.Hash256{}
+	for _, Addr := range fr.Config.Addrs {
+		tx := &vault.Transfer{
+			Timestamp_: uint64(time.Now().UnixNano()),
+			From_:      Addr,
+			To:         Addr,
+			Amount:     amount.NewCoinAmount(1, 0),
+		}
+		sig, err := key.Sign(chain.HashTransaction(fr.cs.cn.Provider().ChainID(), tx))
+		if err != nil {
+			panic(err)
+		}
+		TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
+
+		Txs = append(Txs, tx)
+		Sigs = append(Sigs, sig)
+		TxHashes = append(TxHashes, TxHash)
+	}
+	fr.Txs = Txs
+	fr.Sigs = Sigs
+	fr.TxHashes = TxHashes
 }
 
 // Close terminates the formulator
@@ -126,7 +173,6 @@ func (fr *FormulatorNode) Init() error {
 	fc.Register(types.DefineHashedType("pof.BlockReqMessage"), &BlockReqMessage{})
 	fc.Register(types.DefineHashedType("pof.BlockGenMessage"), &BlockGenMessage{})
 	fc.Register(types.DefineHashedType("pof.BlockObSignMessage"), &BlockObSignMessage{})
-	fc.Register(types.DefineHashedType("p2p.PingMessage"), &p2p.PingMessage{})
 	fc.Register(types.DefineHashedType("p2p.StatusMessage"), &p2p.StatusMessage{})
 	fc.Register(types.DefineHashedType("p2p.BlockMessage"), &p2p.BlockMessage{})
 	fc.Register(types.DefineHashedType("p2p.RequestMessage"), &p2p.RequestMessage{})
@@ -245,7 +291,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 							if item.Limit > 0 {
 								fr.nm.ExceptCastLimit("", bs, item.Limit)
 							} else {
-								fr.nm.BroadcastMessage(bs)
+								fr.nm.BroadcastPacket(bs)
 							}
 						} else {
 							if item.Limit > 0 {
@@ -277,11 +323,35 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 			item := fr.blockQ.PopUntil(TargetHeight)
 			for item != nil {
 				b := item.(*types.Block)
-				if err := fr.cs.cn.ConnectBlock(b); err != nil {
-					break
+				gi, has := fr.lastGenItemMap[b.Header.Height]
+				isConnected := false
+				if has {
+					if gi.BlockGen != nil && gi.Context != nil {
+						if gi.ObSign == nil {
+							gi.ObSign = &BlockObSignMessage{
+								TargetHeight: b.Header.Height,
+								BlockSign: &types.BlockSign{
+									GeneratorSignature: b.Signatures[0],
+									HeaderHash:         encoding.Hash(b.Header),
+								},
+								ObserverSignatures: b.Signatures[1:],
+							}
+						}
+						if err := fr.cs.ct.ConnectBlockWithContext(b, gi.Context); err != nil {
+							log.Println("blockQ.ConnectBlockWithContext", err)
+						} else {
+							isConnected = true
+						}
+					}
+				}
+				if !isConnected {
+					if err := fr.cs.cn.ConnectBlock(b); err != nil {
+						break
+					}
 				}
 				fr.cleanPool(b)
 				rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockConnected", b.Header.Generator.String(), b.Header.Height, len(b.Transactions))
+				delete(fr.lastGenItemMap, b.Header.Height)
 				TargetHeight++
 				Count++
 				if Count > 100 {

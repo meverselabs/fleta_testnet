@@ -19,5 +19,5 @@ type Provider interface {
 	Block(height uint32) (*Block, error)
 	Seq(addr common.Address) uint64
 	Events(From uint32, To uint32) ([]Event, error)
-	NewContextWrapper(pid uint8) *ContextWrapper
+	NewLoaderWrapper(pid uint8) LoaderWrapper
 }

@@ -11,7 +11,6 @@ import (
 
 // message types
 var (
-	PingMessageType            = types.DefineHashedType("p2p.PingMessage")
 	StatusMessageType          = types.DefineHashedType("p2p.StatusMessage")
 	RequestMessageType         = types.DefineHashedType("p2p.RequestMessage")
 	BlockMessageType           = types.DefineHashedType("p2p.BlockMessage")
@@ -74,10 +73,6 @@ func init() {
 		rv.Set(reflect.ValueOf(item).Elem())
 		return nil
 	})
-}
-
-// PingMessage is a message for a block generation
-type PingMessage struct {
 }
 
 // RequestMessage used to request a chain data to a peer

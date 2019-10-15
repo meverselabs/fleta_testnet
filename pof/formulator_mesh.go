@@ -94,11 +94,6 @@ func (ms *FormulatorNodeMesh) SendTo(ID string, m interface{}) error {
 	return nil
 }
 
-// BroadcastMessage sends a message to all peers
-func (ms *FormulatorNodeMesh) BroadcastMessage(m interface{}) {
-	ms.BroadcastPacket(p2p.MessageToPacket(m))
-}
-
 // BroadcastPacket sends a packet to all peers
 func (ms *FormulatorNodeMesh) BroadcastPacket(bs []byte) {
 	peerMap := map[string]peer.Peer{}

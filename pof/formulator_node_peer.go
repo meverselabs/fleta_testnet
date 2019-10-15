@@ -5,7 +5,6 @@ import (
 	"github.com/fletaio/fleta/common/rlog"
 	"github.com/fletaio/fleta/core/chain"
 	"github.com/fletaio/fleta/core/txpool"
-	"github.com/fletaio/fleta/core/types"
 	"github.com/fletaio/fleta/service/p2p"
 	"github.com/fletaio/fleta/service/p2p/peer"
 )
@@ -78,60 +77,9 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 		if msg.Height > Height {
 			return nil
 		}
-		var bs []byte
-		if msg.Height%10 == 0 && msg.Count == 10 && msg.Height+uint32(msg.Count) <= Height {
-			value, err := fr.batchCache.Get(msg.Height)
-			if err != nil {
-				list := make([]*types.Block, 0, 10)
-				for i := uint32(0); i < uint32(msg.Count); i++ {
-					if msg.Height+i > Height {
-						break
-					}
-					b, err := fr.cs.cn.Provider().Block(msg.Height + i)
-					if err != nil {
-						return err
-					}
-					list = append(list, b)
-				}
-				sm := &p2p.BlockMessage{
-					Blocks: list,
-				}
-				bs = p2p.MessageToPacket(sm)
-				fr.batchCache.Set(msg.Height, bs)
-			} else {
-				bs = value.([]byte)
-			}
-		} else if msg.Count == 1 {
-			value, err := fr.singleCache.Get(msg.Height)
-			if err != nil {
-				b, err := fr.cs.cn.Provider().Block(msg.Height)
-				if err != nil {
-					return err
-				}
-				sm := &p2p.BlockMessage{
-					Blocks: []*types.Block{b},
-				}
-				bs = p2p.MessageToPacket(sm)
-				fr.singleCache.Set(msg.Height, bs)
-			} else {
-				bs = value.([]byte)
-			}
-		} else {
-			list := make([]*types.Block, 0, 10)
-			for i := uint32(0); i < uint32(msg.Count); i++ {
-				if msg.Height+i > Height {
-					break
-				}
-				b, err := fr.cs.cn.Provider().Block(msg.Height + i)
-				if err != nil {
-					return err
-				}
-				list = append(list, b)
-			}
-			sm := &p2p.BlockMessage{
-				Blocks: list,
-			}
-			bs = p2p.MessageToPacket(sm)
+		bs, err := p2p.BlockPacketWithCache(msg, fr.cs.cn.Provider(), fr.batchCache, fr.singleCache)
+		if err != nil {
+			return err
 		}
 		fr.sendMessage(0, SenderPublicHash, bs)
 	case *p2p.StatusMessage:

@@ -1,10 +1,14 @@
 package pof
 
 import (
+	"log"
 	"sync"
 	"time"
 
+	"github.com/bluele/gcache"
+
 	"github.com/fletaio/fleta/common"
+	"github.com/fletaio/fleta/common/debug"
 	"github.com/fletaio/fleta/common/key"
 	"github.com/fletaio/fleta/common/queue"
 	"github.com/fletaio/fleta/common/rlog"
@@ -18,26 +22,35 @@ import (
 type messageItem struct {
 	PublicHash common.PublicHash
 	Message    interface{}
-	Raw        []byte
+	Packet     []byte
 }
 
 // ObserverNode observes a block by the consensus
 type ObserverNode struct {
 	sync.Mutex
-	key          key.Key
-	ms           *ObserverNodeMesh
-	fs           *FormulatorService
-	cs           *Consensus
-	ignoreMap    map[common.Address]int64
-	myPublicHash common.PublicHash
-	statusLock   sync.Mutex
-	statusMap    map[string]*p2p.Status
-	requestTimer *p2p.RequestTimer
-	blockQ       *queue.SortedQueue
-	messageQueue *queue.Queue
-	isRunning    bool
-	closeLock    sync.RWMutex
-	isClose      bool
+	key              key.Key
+	ms               *ObserverNodeMesh
+	fs               *FormulatorService
+	cs               *Consensus
+	round            *VoteRound
+	roundFirstTime   uint64
+	roundFirstHeight uint32
+	ignoreMap        map[common.Address]int64
+	myPublicHash     common.PublicHash
+	statusLock       sync.Mutex
+	statusMap        map[string]*p2p.Status
+	requestTimer     *p2p.RequestTimer
+	blockQ           *queue.SortedQueue
+	messageQueue     *queue.Queue
+	recvQueues       []*queue.Queue
+	sendQueues       []*queue.Queue
+	singleCache      gcache.Cache
+	batchCache       gcache.Cache
+	isRunning        bool
+	closeLock        sync.RWMutex
+	isClose          bool
+
+	prevRoundEndTime int64 // FOR DEBUG
 }
 
 // NewObserverNode returns a ObserverNode
@@ -45,11 +58,22 @@ func NewObserverNode(key key.Key, NetAddressMap map[common.PublicHash]string, cs
 	ob := &ObserverNode{
 		key:          key,
 		cs:           cs,
+		round:        NewVoteRound(cs.cn.Provider().Height()+1, cs.maxBlocksPerFormulator),
 		ignoreMap:    map[common.Address]int64{},
 		myPublicHash: common.NewPublicHash(key.PublicKey()),
 		statusMap:    map[string]*p2p.Status{},
 		blockQ:       queue.NewSortedQueue(),
 		messageQueue: queue.NewQueue(),
+		recvQueues: []*queue.Queue{
+			queue.NewQueue(),
+			queue.NewQueue(),
+		},
+		sendQueues: []*queue.Queue{
+			queue.NewQueue(),
+			queue.NewQueue(),
+		},
+		singleCache: gcache.New(500).LRU().Build(),
+		batchCache:  gcache.New(500).LRU().Build(),
 	}
 	ob.ms = NewObserverNodeMesh(key, NetAddressMap, ob)
 	ob.fs = NewFormulatorService(ob)
@@ -64,13 +88,13 @@ func (ob *ObserverNode) Init() error {
 	fc := encoding.Factory("message")
 	fc.Register(types.DefineHashedType("pof.RoundVoteMessage"), &RoundVoteMessage{})
 	fc.Register(types.DefineHashedType("pof.RoundVoteAckMessage"), &RoundVoteAckMessage{})
-	fc.Register(types.DefineHashedType("pof.RoundSetupMessage"), &RoundSetupMessage{})
+	fc.Register(types.DefineHashedType("pof.NextRoundVoteMessage"), &NextRoundVoteMessage{})
+	fc.Register(types.DefineHashedType("pof.NextRoundVoteAckMessage"), &NextRoundVoteAckMessage{})
 	fc.Register(types.DefineHashedType("pof.BlockReqMessage"), &BlockReqMessage{})
-	fc.Register(types.DefineHashedType("pof.BlockGenMessage"), &BlockGenMessage{})
+	fc.Register(BlockGenMessageType, &BlockGenMessage{})
 	fc.Register(types.DefineHashedType("pof.BlockVoteMessage"), &BlockVoteMessage{})
 	fc.Register(types.DefineHashedType("pof.BlockObSignMessage"), &BlockObSignMessage{})
 	fc.Register(types.DefineHashedType("pof.BlockGenRequestMessage"), &BlockGenRequestMessage{})
-	fc.Register(types.DefineHashedType("p2p.PingMessage"), &p2p.PingMessage{})
 	fc.Register(types.DefineHashedType("p2p.StatusMessage"), &p2p.StatusMessage{})
 	fc.Register(types.DefineHashedType("p2p.BlockMessage"), &p2p.BlockMessage{})
 	fc.Register(types.DefineHashedType("p2p.RequestMessage"), &p2p.RequestMessage{})
@@ -127,6 +151,179 @@ func (ob *ObserverNode) Run(BindObserver string, BindFormulator string) {
 	go ob.ms.Run(BindObserver)
 	go ob.fs.Run(BindFormulator)
 	go ob.requestTimer.Run()
+
+	go func() {
+		for !ob.isClose {
+			time.Sleep(30 * time.Second)
+			debug.Result()
+			log.Println("------------------------------")
+		}
+	}()
+
+	go func() {
+		for !ob.isClose {
+			hasMessage := false
+			for !ob.isClose {
+				for _, rq := range ob.recvQueues {
+					if v := rq.Pop(); v != nil {
+						hasMessage = true
+						item := v.(*p2p.RecvMessageItem)
+						m, err := p2p.PacketToMessage(item.Packet)
+						if err != nil {
+							log.Println("PacketToMessage", err)
+							ob.fs.RemovePeer(item.PeerID)
+							break
+						}
+						if p, has := ob.fs.peerMap[item.PeerID]; has {
+							if err := ob.handleFormulatorMessage(p, m, item.Packet); err != nil {
+								log.Println("Formulator Error", p.Name(), err)
+								ob.fs.RemovePeer(item.PeerID)
+							}
+						}
+					}
+				}
+				if !hasMessage {
+					break
+				}
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+	go func() {
+		for !ob.isClose {
+			hasMessage := false
+			for !ob.isClose {
+				for _, sq := range ob.sendQueues {
+					if v := sq.Pop(); v != nil {
+						hasMessage = true
+						item := v.(*p2p.SendMessageItem)
+						if len(item.Packet) > 0 {
+							if err := ob.fs.SendTo(item.Address, item.Packet); err != nil {
+								ob.fs.RemovePeer(string(item.Address[:]))
+							}
+						} else {
+							if err := ob.fs.SendTo(item.Address, p2p.MessageToPacket(item.Message)); err != nil {
+								ob.fs.RemovePeer(string(item.Address[:]))
+							}
+						}
+					}
+				}
+				if !hasMessage {
+					break
+				}
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	blockTimer := time.NewTimer(time.Millisecond)
+	queueTimer := time.NewTimer(time.Millisecond)
+	voteTimer := time.NewTimer(time.Millisecond)
+	for !ob.isClose {
+		select {
+		case <-blockTimer.C:
+			cp := ob.cs.cn.Provider()
+			ob.Lock()
+			hasItem := false
+			TargetHeight := uint64(cp.Height() + 1)
+			Count := 0
+			item := ob.blockQ.PopUntil(TargetHeight)
+			for item != nil {
+				b := item.(*types.Block)
+				if err := ob.cs.cn.ConnectBlock(b); err != nil {
+					rlog.Println(err)
+					panic(err)
+					break
+				}
+				if debug.DEBUG {
+					rlog.Println(cp.Height(), "BlockConnectedQ", b.Header.Generator.String(), ob.round.RoundState, b.Header.Height, (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
+				}
+				TargetHeight++
+				Count++
+				if Count > 100 {
+					break
+				}
+				item = ob.blockQ.PopUntil(TargetHeight)
+				hasItem = true
+			}
+			ob.Unlock()
+
+			if hasItem {
+				ob.broadcastStatus()
+			}
+			blockTimer.Reset(50 * time.Millisecond)
+		case <-queueTimer.C:
+			v := ob.messageQueue.Pop()
+			i := 0
+			for v != nil {
+				i++
+				item := v.(*messageItem)
+				ob.Lock()
+				ob.handleObserverMessage(item.PublicHash, item.Message, item.Packet)
+				ob.Unlock()
+				v = ob.messageQueue.Pop()
+			}
+			queueTimer.Reset(10 * time.Millisecond)
+		case <-voteTimer.C:
+			ob.Lock()
+			cp := ob.cs.cn.Provider()
+			ob.syncVoteRound()
+			IsFailable := true
+			if len(ob.adjustFormulatorMap()) > 0 {
+				if ob.round.MinRoundVoteAck != nil {
+					if debug.DEBUG {
+						rlog.Println(cp.Height(), "Current State", ob.round.MinRoundVoteAck.Formulator.String(), ob.round.RoundState, len(ob.adjustFormulatorMap()), ob.fs.PeerCount(), (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
+					}
+				} else {
+					if debug.DEBUG {
+						rlog.Println(cp.Height(), "Current State", ob.round.RoundState, len(ob.adjustFormulatorMap()), ob.fs.PeerCount(), (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
+					}
+				}
+				if IsFailable {
+					ob.round.VoteFailCount++
+					if ob.round.VoteFailCount > 20 {
+						if ob.round.MinRoundVoteAck != nil {
+							addr := ob.round.MinRoundVoteAck.Formulator
+							if _, has := ob.ignoreMap[addr]; has {
+								ob.fs.RemovePeer(string(addr[:]))
+								ob.ignoreMap[addr] = time.Now().UnixNano() + int64(120*time.Second)
+							} else {
+								ob.ignoreMap[addr] = time.Now().UnixNano() + int64(30*time.Second)
+							}
+							if debug.DEBUG {
+								rlog.Println(cp.Height(), "Failure", ob.round.MinRoundVoteAck.Formulator.String(), ob.round.RoundState, len(ob.adjustFormulatorMap()), ob.fs.PeerCount(), (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
+							}
+						} else {
+							if debug.DEBUG {
+								rlog.Println(cp.Height(), "Failure", ob.round.RoundState, len(ob.adjustFormulatorMap()), ob.fs.PeerCount(), (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
+							}
+						}
+						ob.resetVoteRound(true)
+					}
+				}
+				if ob.round.RoundState == RoundVoteState {
+					ob.sendRoundVote()
+					ob.broadcastStatus()
+				} else if ob.round.RoundState == BlockVoteState {
+					br, has := ob.round.BlockRoundMap[ob.round.TargetHeight]
+					if has {
+						ob.sendBlockVote(br.BlockGenMessage)
+						if debug.DEBUG {
+							rlog.Println(cp.Height(), "sendBlockVote", ob.round.MinRoundVoteAck.Formulator.String(), encoding.Hash(br.BlockGenMessage.Block.Header), ob.round.RoundState, len(ob.adjustFormulatorMap()), ob.fs.PeerCount(), (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
+						}
+						IsFailable = false
+					}
+				}
+			} else {
+				if debug.DEBUG {
+					rlog.Println(cp.Height(), "No Formulator", ob.round.RoundState, len(ob.adjustFormulatorMap()), ob.fs.PeerCount(), (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
+				}
+			}
+			ob.Unlock()
+
+			voteTimer.Reset(100 * time.Millisecond)
+		}
+	}
 }
 
 // OnTimerExpired called when rquest expired
@@ -178,4 +375,43 @@ func (ob *ObserverNode) adjustFormulatorMap() map[common.Address]bool {
 		}
 	}
 	return FormulatorMap
+}
+
+func (ob *ObserverNode) syncVoteRound() {
+	TargetHeight := ob.cs.cn.Provider().Height() + 1
+	if ob.round.TargetHeight < TargetHeight {
+		IsContinue := false
+		Top, err := ob.cs.rt.TopRank(0)
+		if err != nil {
+			panic(err)
+		}
+		if ob.round.MinRoundVoteAck != nil && Top.Address == ob.round.MinRoundVoteAck.Formulator {
+			if br, has := ob.round.BlockRoundMap[TargetHeight]; has {
+				ob.round.TargetHeight = TargetHeight
+				ob.round.RoundState = BlockWaitState
+				if br.BlockGenMessageWait != nil && br.BlockGenMessage == nil {
+					ob.messageQueue.Push(&messageItem{
+						Message: br.BlockGenMessageWait,
+					})
+					br.BlockGenMessageWait = nil
+				}
+				IsContinue = true
+			}
+		}
+		if !IsContinue {
+			if debug.DEBUG {
+				rlog.Println(ob.cs.cn.Provider().Height(), "Turn Over", ob.round.RoundState, len(ob.adjustFormulatorMap()), ob.fs.PeerCount(), (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
+			}
+			ob.resetVoteRound(false)
+		}
+	}
+}
+
+func (ob *ObserverNode) resetVoteRound(resetStat bool) {
+	ob.round = NewVoteRound(ob.cs.cn.Provider().Height()+1, ob.cs.maxBlocksPerFormulator)
+	ob.prevRoundEndTime = time.Now().UnixNano()
+	if resetStat {
+		ob.roundFirstTime = 0
+		ob.roundFirstHeight = 0
+	}
 }

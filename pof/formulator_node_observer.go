@@ -2,7 +2,7 @@ package pof
 
 import (
 	"bytes"
-	"sync"
+	"log"
 	"time"
 
 	"github.com/fletaio/fleta/common"
@@ -10,6 +10,7 @@ import (
 	"github.com/fletaio/fleta/core/chain"
 	"github.com/fletaio/fleta/core/types"
 	"github.com/fletaio/fleta/encoding"
+	"github.com/fletaio/fleta/process/vault"
 	"github.com/fletaio/fleta/service/p2p"
 	"github.com/fletaio/fleta/service/p2p/peer"
 )
@@ -51,6 +52,16 @@ func (fr *FormulatorNode) onObserverRecv(p peer.Peer, bs []byte) error {
 	return nil
 }
 
+func (fr *FormulatorNode) genableHeight() uint32 {
+	// TODO : get height from gen context
+	return fr.cs.cn.Provider().Height() + 1
+}
+
+func (fr *FormulatorNode) genableContext() *types.Context {
+	// TODO : get context from gen context
+	return fr.cs.cn.NewContext()
+}
+
 func (fr *FormulatorNode) handleObserverMessage(p peer.Peer, m interface{}, RetryCount int) error {
 	cp := fr.cs.cn.Provider()
 
@@ -61,31 +72,34 @@ func (fr *FormulatorNode) handleObserverMessage(p peer.Peer, m interface{}, Retr
 		fr.Lock()
 		defer fr.Unlock()
 
-		Height := cp.Height()
-		if msg.TargetHeight <= fr.lastGenHeight && fr.lastGenTime+int64(30*time.Second) > time.Now().UnixNano() {
+		TargetHeight := fr.genableHeight()
+		if msg.TargetHeight < TargetHeight {
 			return nil
+		}
+		if msg.TargetHeight <= fr.lastGenHeight {
+			if time.Now().UnixNano() < fr.lastGenTime+int64(30*time.Second) {
+				return nil
+			}
+			fr.lastReqMessage = nil
 		}
 		if fr.lastReqMessage != nil {
 			if msg.TargetHeight <= fr.lastReqMessage.TargetHeight {
 				return nil
 			}
 		}
-		if msg.TargetHeight <= Height {
-			return nil
-		}
-		if msg.TargetHeight > Height+1 {
+		if msg.TargetHeight > TargetHeight {
 			if RetryCount >= 10 {
 				return nil
 			}
 
 			if RetryCount == 0 {
-				Count := uint8(msg.TargetHeight - Height - 1)
+				Count := uint8(msg.TargetHeight - TargetHeight)
 				if Count > 10 {
 					Count = 10
 				}
 
 				sm := &p2p.RequestMessage{
-					Height: Height + 1,
+					Height: TargetHeight,
 					Count:  Count,
 				}
 				p.SendPacket(p2p.MessageToPacket(sm))
@@ -97,32 +111,27 @@ func (fr *FormulatorNode) handleObserverMessage(p peer.Peer, m interface{}, Retr
 			return nil
 		}
 
-		Top, err := fr.cs.rt.TopRank(int(msg.TimeoutCount))
-		if err != nil {
-			return err
-		}
-		if msg.Formulator != Top.Address {
-			return ErrInvalidRequest
-		}
 		if msg.Formulator != fr.Config.Formulator {
 			return ErrInvalidRequest
 		}
-		if msg.FormulatorPublicHash != common.NewPublicHash(fr.key.PublicKey()) {
+		if msg.FormulatorPublicHash != fr.frPublicHash {
 			return ErrInvalidRequest
 		}
 		if msg.PrevHash != cp.LastHash() {
 			return ErrInvalidRequest
 		}
-		if msg.TargetHeight != Height+1 {
-			return ErrInvalidRequest
-		}
+		/*
+			Top, err := fr.cs.rt.TopRank(int(msg.TimeoutCount))
+			if err != nil {
+				return err
+			}
+			if msg.Formulator != Top.Address {
+				return ErrInvalidRequest
+			}
+		*/
 		fr.lastReqMessage = msg
 
-		var wg sync.WaitGroup
-		wg.Add(1)
 		go func(req *BlockReqMessage) error {
-			wg.Done()
-
 			fr.genLock.Lock()
 			defer fr.genLock.Unlock()
 
@@ -131,7 +140,46 @@ func (fr *FormulatorNode) handleObserverMessage(p peer.Peer, m interface{}, Retr
 
 			return fr.genBlock(p, req)
 		}(msg)
-		wg.Wait()
+		return nil
+	case *BlockGenMessage:
+		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenMessage", msg.Block.Header.Height)
+
+		fr.Lock()
+		defer fr.Unlock()
+
+		TargetHeight := fr.cs.cn.Provider().Height() + 1
+		if msg.Block.Header.Height < TargetHeight {
+			return nil
+		}
+		item, has := fr.lastGenItemMap[msg.Block.Header.Height]
+		if has {
+			if item.ObSign != nil {
+				if item.ObSign.BlockSign.HeaderHash != encoding.Hash(msg.Block.Header) {
+					return ErrInvalidRequest
+				}
+			}
+			item.BlockGen = msg
+		} else {
+			item = &genItem{
+				BlockGen: msg,
+				ObSign:   nil,
+				Context:  nil,
+			}
+			fr.lastGenItemMap[msg.Block.Header.Height] = item
+		}
+		if item.Context == nil {
+			TargetHeight := msg.Block.Header.Height
+			for TargetHeight == fr.genableHeight() {
+				ctx := fr.genableContext()
+				if err := fr.cs.ct.ExecuteBlockOnContext(msg.Block, ctx); err != nil {
+					rlog.Println(msg.Block.Header.Generator.String(), "if err := fr.cs.ct.ExecuteBlockOnContext(msg.Block, ctx); err != nil {")
+					return err
+				}
+				item.Context = ctx
+				TargetHeight++
+			}
+		}
+		fr.updateByGenItem()
 		return nil
 	case *BlockObSignMessage:
 		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockObSignMessage", msg.TargetHeight)
@@ -143,69 +191,30 @@ func (fr *FormulatorNode) handleObserverMessage(p peer.Peer, m interface{}, Retr
 		if msg.TargetHeight < TargetHeight {
 			return nil
 		}
-		if msg.TargetHeight >= fr.lastReqMessage.TargetHeight+10 {
-			return ErrInvalidRequest
-		}
-		fr.lastObSignMessageMap[msg.TargetHeight] = msg
-
-		for len(fr.lastGenMessages) > 0 {
-			GenMessage := fr.lastGenMessages[0]
-			if GenMessage.Block.Header.Height < TargetHeight {
-				if len(fr.lastGenMessages) > 1 {
-					fr.lastGenMessages = fr.lastGenMessages[1:]
-					fr.lastContextes = fr.lastContextes[1:]
-				} else {
-					fr.lastGenMessages = []*BlockGenMessage{}
-					fr.lastContextes = []*types.Context{}
+		if item, has := fr.lastGenItemMap[msg.TargetHeight]; has {
+			if item.BlockGen != nil {
+				if msg.BlockSign.HeaderHash != encoding.Hash(item.BlockGen.Block.Header) {
+					item.BlockGen = nil
+					item.Context = nil
 				}
-				continue
 			}
-			if GenMessage.Block.Header.Height > TargetHeight {
-				break
-			}
-			sm, has := fr.lastObSignMessageMap[GenMessage.Block.Header.Height]
-			if !has {
-				break
-			}
-			if GenMessage.Block.Header.Height == sm.TargetHeight {
-				ctx := fr.lastContextes[0]
-
-				if sm.BlockSign.HeaderHash != encoding.Hash(GenMessage.Block.Header) {
-					return ErrInvalidRequest
-				}
-
-				b := &types.Block{
-					Header:                GenMessage.Block.Header,
-					TransactionTypes:      GenMessage.Block.TransactionTypes,
-					Transactions:          GenMessage.Block.Transactions,
-					TransactionSignatures: GenMessage.Block.TransactionSignatures,
-					TransactionResults:    GenMessage.Block.TransactionResults,
-					Signatures:            append([]common.Signature{GenMessage.GeneratorSignature}, sm.ObserverSignatures...),
-				}
-				if err := fr.cs.ct.ConnectBlockWithContext(b, ctx); err != nil {
-					return err
-				}
-				fr.broadcastStatus()
-				fr.cleanPool(b)
-				rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockConnected", b.Header.Generator.String(), b.Header.Height, len(b.Transactions))
-
-				fr.statusLock.Lock()
-				if status, has := fr.obStatusMap[p.ID()]; has {
-					if status.Height < GenMessage.Block.Header.Height {
-						status.Height = GenMessage.Block.Header.Height
-					}
-				}
-				fr.statusLock.Unlock()
-
-				if len(fr.lastGenMessages) > 1 {
-					fr.lastGenMessages = fr.lastGenMessages[1:]
-					fr.lastContextes = fr.lastContextes[1:]
-				} else {
-					fr.lastGenMessages = []*BlockGenMessage{}
-					fr.lastContextes = []*types.Context{}
-				}
+			item.ObSign = msg
+			fr.updateByGenItem()
+		} else {
+			fr.lastGenItemMap[msg.TargetHeight] = &genItem{
+				BlockGen: nil,
+				ObSign:   msg,
+				Context:  nil,
 			}
 		}
+
+		fr.statusLock.Lock()
+		if status, has := fr.obStatusMap[p.ID()]; has {
+			if status.Height < msg.TargetHeight {
+				status.Height = msg.TargetHeight
+			}
+		}
+		fr.statusLock.Unlock()
 		return nil
 	case *p2p.BlockMessage:
 		for _, b := range msg.Blocks {
@@ -290,32 +299,68 @@ func (fr *FormulatorNode) tryRequestNext() {
 	}
 }
 
+func (fr *FormulatorNode) updateByGenItem() {
+	TargetHeight := fr.cs.cn.Provider().Height() + 1
+
+	item := fr.lastGenItemMap[TargetHeight]
+	for {
+		if item == nil {
+			break
+		}
+		if item.BlockGen == nil || item.ObSign == nil || item.Context == nil {
+			break
+		}
+
+		b := &types.Block{
+			Header:                item.BlockGen.Block.Header,
+			TransactionTypes:      item.BlockGen.Block.TransactionTypes,
+			Transactions:          item.BlockGen.Block.Transactions,
+			TransactionSignatures: item.BlockGen.Block.TransactionSignatures,
+			TransactionResults:    item.BlockGen.Block.TransactionResults,
+			Signatures:            append([]common.Signature{item.BlockGen.GeneratorSignature}, item.ObSign.ObserverSignatures...),
+		}
+		if err := fr.cs.ct.ConnectBlockWithContext(b, item.Context); err != nil {
+			log.Println("updateByGenItem.ConnectBlockWithContext", err)
+			delete(fr.lastGenItemMap, b.Header.Height)
+			break
+		}
+		fr.broadcastStatus()
+		fr.cleanPool(b)
+		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockConnected", b.Header.Generator.String(), b.Header.Height, len(b.Transactions))
+		delete(fr.lastGenItemMap, b.Header.Height)
+
+		TargetHeight++
+		item = fr.lastGenItemMap[TargetHeight]
+	}
+}
+
 func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 	cp := fr.cs.cn.Provider()
-
-	fr.lastGenMessages = []*BlockGenMessage{}
-	fr.lastObSignMessageMap = map[uint32]*BlockObSignMessage{}
-	fr.lastContextes = []*types.Context{}
-
-	start := time.Now().UnixNano()
-	Now := uint64(time.Now().UnixNano())
-	StartBlockTime := Now
-	bNoDelay := false
 
 	RemainBlocks := fr.cs.maxBlocksPerFormulator
 	if msg.TimeoutCount == 0 {
 		RemainBlocks = fr.cs.maxBlocksPerFormulator - fr.cs.blocksBySameFormulator
 	}
 
+	start := time.Now().UnixNano()
+	Now := uint64(time.Now().UnixNano())
+	StartBlockTime := Now
+	EndBlockTime := StartBlockTime + uint64(time.Millisecond)*uint64(RemainBlocks)
+
 	LastTimestamp := cp.LastTimestamp()
 	if StartBlockTime < LastTimestamp {
 		StartBlockTime = LastTimestamp + uint64(time.Millisecond)
-	} else if StartBlockTime > LastTimestamp+uint64(RemainBlocks)*uint64(500*time.Millisecond) {
-		bNoDelay = true
 	}
 
+	fc := encoding.Factory("transaction")
+	t, err := fc.TypeOf(&vault.Transfer{})
+	if err != nil {
+		panic(err)
+	}
+	signer := common.MustParsePublicHash("2RqGkxiHZ4NopN9QxKgw93RuSrxX2NnLjv1q1aFDdV9")
+
 	var lastHeader *types.Header
-	ctx := fr.cs.ct.NewContext()
+	ctx := fr.genableContext()
 	for i := uint32(0); i < RemainBlocks; i++ {
 		var TimeoutCount uint32
 		if i == 0 {
@@ -324,11 +369,11 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 			ctx = ctx.NextContext(encoding.Hash(lastHeader), lastHeader.Timestamp)
 		}
 
-		Timestamp := StartBlockTime
-		if bNoDelay || Timestamp > Now+uint64(3*time.Second) {
-			Timestamp += uint64(i) * uint64(time.Millisecond)
-		} else {
-			Timestamp += uint64(i) * uint64(500*time.Millisecond)
+		Timestamp := StartBlockTime + uint64(i)*uint64(500*time.Millisecond)
+		IsEndBound := false
+		if Timestamp > EndBlockTime {
+			Timestamp = EndBlockTime
+			IsEndBound = true
 		}
 		if Timestamp <= ctx.LastTimestamp() {
 			Timestamp = ctx.LastTimestamp() + 1
@@ -344,35 +389,47 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 			return err
 		}
 
-		timer := time.NewTimer(200 * time.Millisecond)
+		/*
+				timer := time.NewTimer(200 * time.Millisecond)
 
-		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenBegin", msg.TargetHeight)
+				rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenBegin", msg.TargetHeight)
 
-		fr.txpool.Lock() // Prevent delaying from TxPool.Push
-		Count := 0
-	TxLoop:
-		for {
-			select {
-			case <-timer.C:
-				break TxLoop
-			default:
-				sn := ctx.Snapshot()
-				item := fr.txpool.UnsafePop(ctx)
-				ctx.Revert(sn)
-				if item == nil {
-					break TxLoop
+				fr.txpool.Lock() // Prevent delaying from TxPool.Push
+				Count := 0
+			TxLoop:
+				for {
+					select {
+					case <-timer.C:
+						break TxLoop
+					default:
+						sn := ctx.Snapshot()
+						item := fr.txpool.UnsafePop(ctx)
+						ctx.Revert(sn)
+						if item == nil {
+							break TxLoop
+						}
+						if err := bc.UnsafeAddTx(fr.Config.Formulator, item.TxType, item.TxHash, item.Transaction, item.Signatures, item.Signers); err != nil {
+							rlog.Println("UnsafeAddTx", err)
+							continue
+						}
+						Count++
+						if Count > fr.Config.MaxTransactionsPerBlock {
+							break TxLoop
+						}
+					}
 				}
-				if err := bc.UnsafeAddTx(fr.Config.Formulator, item.TxType, item.TxHash, item.Transaction, item.Signatures, item.Signers); err != nil {
-					rlog.Println(err)
-					continue
-				}
-				Count++
-				if Count > fr.Config.MaxTransactionsPerBlock {
-					break TxLoop
-				}
+				fr.txpool.Unlock() // Prevent delaying from TxPool.Push
+		*/
+
+		for i := range fr.Config.Addrs {
+			tx := fr.Txs[i]
+			TxHash := fr.TxHashes[i]
+			sig := fr.Sigs[i]
+			if err := bc.UnsafeAddTx(fr.Config.Formulator, t, TxHash, tx, []common.Signature{sig}, []common.PublicHash{signer}); err != nil {
+				rlog.Println(err)
+				continue
 			}
 		}
-		fr.txpool.Unlock() // Prevent delaying from TxPool.Push
 
 		b, err := bc.Finalize(Timestamp)
 		if err != nil {
@@ -393,17 +450,21 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 
 		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenMessage", sm.Block.Header.Height, len(sm.Block.Transactions))
 
-		fr.lastGenMessages = append(fr.lastGenMessages, sm)
-		fr.lastContextes = append(fr.lastContextes, ctx)
+		fr.lastGenItemMap[sm.Block.Header.Height] = &genItem{
+			BlockGen: sm,
+			Context:  ctx,
+		}
 		fr.lastGenHeight = ctx.TargetHeight()
 		fr.lastGenTime = time.Now().UnixNano()
 
 		ExpectedTime := time.Duration(i+1) * 500 * time.Millisecond
-		if i >= 7 {
-			ExpectedTime = 3500*time.Millisecond + time.Duration(i-7+1)*200*time.Millisecond
+		if i == 0 {
+			ExpectedTime = 200 * time.Millisecond
+		} else if i >= 9 {
+			ExpectedTime = 3200*time.Millisecond + time.Duration(i-9+1)*200*time.Millisecond
 		}
 		PastTime := time.Duration(time.Now().UnixNano() - start)
-		if !bNoDelay && ExpectedTime > PastTime {
+		if !IsEndBound && ExpectedTime > PastTime {
 			fr.Unlock()
 			time.Sleep(ExpectedTime - PastTime)
 			fr.Lock()
