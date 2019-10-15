@@ -13,11 +13,10 @@ func (nd *Node) sendMessage(Priority int, Target common.PublicHash, m interface{
 	})
 }
 
-func (nd *Node) sendMessagePacket(Priority int, Target common.PublicHash, raw []byte, Height uint32) {
+func (nd *Node) sendMessagePacket(Priority int, Target common.PublicHash, raw []byte) {
 	nd.sendQueues[Priority].Push(&SendMessageItem{
 		Target: Target,
 		Packet: raw,
-		Height: Height,
 	})
 }
 

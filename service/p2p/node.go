@@ -38,7 +38,8 @@ type Node struct {
 	txWaitQ      *queue.LinkedQueue
 	recvQueues   []*queue.Queue
 	sendQueues   []*queue.Queue
-	cache        gcache.Cache
+	singleCache  gcache.Cache
+	batchCache   gcache.Cache
 	isRunning    bool
 	closeLock    sync.RWMutex
 	isClose      bool
@@ -65,7 +66,8 @@ func NewNode(key key.Key, SeedNodeMap map[common.PublicHash]string, cn *chain.Ch
 			queue.NewQueue(), //tx
 			queue.NewQueue(), //peer
 		},
-		cache: gcache.New(500).LRU().Build(),
+		singleCache: gcache.New(500).LRU().Build(),
+		batchCache:  gcache.New(500).LRU().Build(),
 	}
 	nd.ms = NewNodeMesh(cn.Provider().ChainID(), key, SeedNodeMap, nd, peerStorePath)
 	nd.requestTimer = NewRequestTimer(nd)
@@ -337,6 +339,18 @@ func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 
 	switch msg := m.(type) {
 	case *RequestMessage:
+		nd.statusLock.Lock()
+		status, has := nd.statusMap[ID]
+		nd.statusLock.Unlock()
+		if has {
+			if msg.Height < status.Height {
+				if msg.Height+uint32(msg.Count) <= status.Height {
+					return nil
+				}
+				msg.Height = status.Height
+			}
+		}
+
 		if msg.Count == 0 {
 			msg.Count = 1
 		}
@@ -347,21 +361,62 @@ func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 		if msg.Height > Height {
 			return nil
 		}
-		list := make([]*types.Block, 0, 10)
-		for i := uint32(0); i < uint32(msg.Count); i++ {
-			if msg.Height+i > Height {
-				break
-			}
-			b, err := nd.cn.Provider().Block(msg.Height + i)
+		var bs []byte
+		if msg.Height%10 == 0 && msg.Count == 10 && msg.Height+uint32(msg.Count) <= Height {
+			value, err := nd.batchCache.Get(msg.Height)
 			if err != nil {
-				return err
+				list := make([]*types.Block, 0, 10)
+				for i := uint32(0); i < uint32(msg.Count); i++ {
+					if msg.Height+i > Height {
+						break
+					}
+					b, err := nd.cn.Provider().Block(msg.Height + i)
+					if err != nil {
+						return err
+					}
+					list = append(list, b)
+				}
+				sm := &BlockMessage{
+					Blocks: list,
+				}
+				bs = MessageToPacket(sm)
+				nd.batchCache.Set(msg.Height, bs)
+			} else {
+				bs = value.([]byte)
 			}
-			list = append(list, b)
+		} else if msg.Count == 1 {
+			value, err := nd.singleCache.Get(msg.Height)
+			if err != nil {
+				b, err := nd.cn.Provider().Block(msg.Height)
+				if err != nil {
+					return err
+				}
+				sm := &BlockMessage{
+					Blocks: []*types.Block{b},
+				}
+				bs = MessageToPacket(sm)
+				nd.singleCache.Set(msg.Height, bs)
+			} else {
+				bs = value.([]byte)
+			}
+		} else {
+			list := make([]*types.Block, 0, 10)
+			for i := uint32(0); i < uint32(msg.Count); i++ {
+				if msg.Height+i > Height {
+					break
+				}
+				b, err := nd.cn.Provider().Block(msg.Height + i)
+				if err != nil {
+					return err
+				}
+				list = append(list, b)
+			}
+			sm := &BlockMessage{
+				Blocks: list,
+			}
+			bs = MessageToPacket(sm)
 		}
-		sm := &BlockMessage{
-			Blocks: list,
-		}
-		nd.sendMessage(0, SenderPublicHash, sm)
+		nd.sendMessagePacket(0, SenderPublicHash, bs)
 		return nil
 	case *StatusMessage:
 		nd.statusLock.Lock()
@@ -374,24 +429,18 @@ func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 
 		Height := nd.cn.Provider().Height()
 		if Height < msg.Height {
-			for q := uint32(0); q < 10; q++ {
-				BaseHeight := Height + q*10
-				if BaseHeight > msg.Height {
-					break
+			enableCount := 0
+			for i := Height + 1; i <= Height+10 && i <= msg.Height; i++ {
+				if !nd.requestTimer.Exist(i) {
+					enableCount++
 				}
-				enableCount := 0
-				for i := BaseHeight + 1; i <= BaseHeight+10 && i <= msg.Height; i++ {
+			}
+			if Height%10 == 0 && enableCount == 10 {
+				nd.sendRequestBlockTo(SenderPublicHash, Height+1, 10)
+			} else {
+				for i := Height + 1; i <= Height+10 && i <= msg.Height; i++ {
 					if !nd.requestTimer.Exist(i) {
-						enableCount++
-					}
-				}
-				if enableCount == 10 {
-					nd.sendRequestBlockTo(SenderPublicHash, BaseHeight+1, 10)
-				} else if enableCount > 0 {
-					for i := BaseHeight + 1; i <= BaseHeight+10 && i <= msg.Height; i++ {
-						if !nd.requestTimer.Exist(i) {
-							nd.sendRequestBlockTo(SenderPublicHash, i, 1)
-						}
+						nd.sendRequestBlockTo(SenderPublicHash, i, 1)
 					}
 				}
 			}

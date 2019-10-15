@@ -31,5 +31,4 @@ type SendMessageItem struct {
 	Message interface{}
 	Limit   int
 	Packet  []byte
-	Height  uint32
 }
