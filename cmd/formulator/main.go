@@ -55,6 +55,7 @@ func main() {
 	if err := config.LoadFile("./config.toml", &cfg); err != nil {
 		panic(err)
 	}
+	cfg.NodeKeyHex = cfg.GenKeyHex //TEMP
 	if len(cfg.StoreRoot) == 0 {
 		cfg.StoreRoot = "./fdata"
 	}
@@ -125,6 +126,10 @@ func main() {
 		}
 		SeedNodeMap[pubhash] = netAddr
 	}
+	SeedNodeMap[common.MustParsePublicHash("4YjmYcLVvBSmtjh4Z7frRZhWgdEAYTSABCoqqzhKEJa")] = "199.247.2.136:41000"
+	SeedNodeMap[common.MustParsePublicHash("3ZdKaqaCbGSQ5xmAphzVTeEF1eGzX6iU4LLGD2ox2g9")] = "45.77.59.252:41000"
+	SeedNodeMap[common.MustParsePublicHash("3PuvivcsCzqkHhhWNfeTF2AbJurRLsq7Mt1AiYSLyP5")] = "140.82.63.172:41000"
+	SeedNodeMap[common.MustParsePublicHash("CV3cNk8UZxJcsLYjSgMdKuMf7VbDnbHXyqvb2rSE4y")] = "45.76.247.209:41000"
 
 	cm := closer.NewManager()
 	sigc := make(chan os.Signal, 1)

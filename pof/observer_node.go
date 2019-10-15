@@ -186,7 +186,7 @@ func (ob *ObserverNode) Run(BindObserver string, BindFormulator string) {
 					break
 				}
 			}
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 		}
 	}()
 	go func() {
@@ -202,7 +202,7 @@ func (ob *ObserverNode) Run(BindObserver string, BindFormulator string) {
 								ob.fs.RemovePeer(string(item.Address[:]))
 							}
 						} else {
-							if err := ob.fs.SendTo(item.Address, p2p.MessageToPacket(item.Message)); err != nil {
+							if err := ob.fs.SendTo(item.Address, item.Packet); err != nil {
 								ob.fs.RemovePeer(string(item.Address[:]))
 							}
 						}
@@ -212,7 +212,7 @@ func (ob *ObserverNode) Run(BindObserver string, BindFormulator string) {
 					break
 				}
 			}
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 		}
 	}()
 
@@ -250,8 +250,10 @@ func (ob *ObserverNode) Run(BindObserver string, BindFormulator string) {
 
 			if hasItem {
 				ob.broadcastStatus()
+				blockTimer.Reset(50 * time.Millisecond)
+			} else {
+				blockTimer.Reset(200 * time.Millisecond)
 			}
-			blockTimer.Reset(50 * time.Millisecond)
 		case <-queueTimer.C:
 			v := ob.messageQueue.Pop()
 			i := 0

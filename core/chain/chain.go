@@ -399,7 +399,7 @@ func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context) error
 
 func (cn *Chain) validateHeader(bh *types.Header) error {
 	provider := cn.Provider()
-	height, lastHash, lastTimestamp := provider.LastStatus()
+	height, lastHash := provider.LastStatus()
 	if bh.ChainID != provider.ChainID() {
 		return ErrInvalidChainID
 	}
@@ -409,7 +409,7 @@ func (cn *Chain) validateHeader(bh *types.Header) error {
 	if bh.PrevHash != lastHash {
 		return ErrInvalidPrevHash
 	}
-	if bh.Timestamp <= lastTimestamp {
+	if bh.Timestamp <= provider.LastTimestamp() {
 		return ErrInvalidTimestamp
 	}
 	if bh.Generator == common.NewAddress(0, 0, 0) {

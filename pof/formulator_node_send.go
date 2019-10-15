@@ -1,6 +1,7 @@
 package pof
 
 import (
+	"log"
 	"time"
 
 	"github.com/fletaio/fleta/common"
@@ -8,9 +9,13 @@ import (
 )
 
 func (fr *FormulatorNode) sendMessage(Priority int, Target common.PublicHash, m interface{}) {
+	if _, is := m.([]byte); is {
+		panic("")
+	}
+
 	fr.sendQueues[Priority].Push(&p2p.SendMessageItem{
-		Target:  Target,
-		Message: m,
+		Target: Target,
+		Packet: p2p.MessageToPacket(m),
 	})
 }
 
@@ -28,23 +33,47 @@ func (fr *FormulatorNode) broadcastMessagePacket(Priority int, bs []byte) {
 }
 
 func (fr *FormulatorNode) limitCastMessage(Priority int, m interface{}) {
+	if _, is := m.([]byte); is {
+		panic("")
+	}
+
 	fr.sendQueues[Priority].Push(&p2p.SendMessageItem{
-		Message: m,
-		Limit:   3,
+		Packet: p2p.MessageToPacket(m),
+		Limit:  3,
 	})
 }
 
 func (fr *FormulatorNode) exceptLimitCastMessage(Priority int, Target common.PublicHash, m interface{}) {
+	if _, is := m.([]byte); is {
+		panic("")
+	}
+
 	fr.sendQueues[Priority].Push(&p2p.SendMessageItem{
-		Target:  Target,
-		Message: m,
-		Limit:   3,
+		Target: Target,
+		Packet: p2p.MessageToPacket(m),
+		Limit:  3,
 	})
+}
+
+func (fr *FormulatorNode) sendStatusTo(TargetPubHash common.PublicHash) error {
+	if TargetPubHash == fr.myPublicHash {
+		return nil
+	}
+
+	cp := fr.cs.cn.Provider()
+	height, lastHash := cp.LastStatus()
+	nm := &p2p.StatusMessage{
+		Version:  cp.Version(),
+		Height:   height,
+		LastHash: lastHash,
+	}
+	fr.sendMessage(0, TargetPubHash, nm)
+	return nil
 }
 
 func (fr *FormulatorNode) broadcastStatus() error {
 	cp := fr.cs.cn.Provider()
-	height, lastHash, _ := cp.LastStatus()
+	height, lastHash := cp.LastStatus()
 	nm := &p2p.StatusMessage{
 		Version:  cp.Version(),
 		Height:   height,
@@ -57,6 +86,8 @@ func (fr *FormulatorNode) broadcastStatus() error {
 }
 
 func (fr *FormulatorNode) sendRequestBlockTo(TargetID string, Height uint32, Count uint8) error {
+	log.Println("sendRequestBlockTo", TargetID, Height, Count)
+
 	nm := &p2p.RequestMessage{
 		Height: Height,
 		Count:  Count,
@@ -72,6 +103,7 @@ func (fr *FormulatorNode) sendRequestBlockToNode(TargetPubHash common.PublicHash
 	if TargetPubHash == fr.myPublicHash {
 		return nil
 	}
+	log.Println("sendRequestBlockToNode", TargetPubHash.String(), Height, Count)
 
 	nm := &p2p.RequestMessage{
 		Height: Height,

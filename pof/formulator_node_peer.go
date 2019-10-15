@@ -1,6 +1,8 @@
 package pof
 
 import (
+	"math/rand"
+
 	"github.com/fletaio/fleta/common"
 	"github.com/fletaio/fleta/common/rlog"
 	"github.com/fletaio/fleta/core/chain"
@@ -14,6 +16,15 @@ func (fr *FormulatorNode) OnConnected(p peer.Peer) {
 	fr.statusLock.Lock()
 	fr.statusMap[p.ID()] = &p2p.Status{}
 	fr.statusLock.Unlock()
+
+	cp := fr.cs.cn.Provider()
+	height, lastHash := cp.LastStatus()
+	nm := &p2p.StatusMessage{
+		Version:  cp.Version(),
+		Height:   height,
+		LastHash: lastHash,
+	}
+	p.SendPacket(p2p.MessageToPacket(nm))
 }
 
 // OnDisconnected is called when the  peer is disconnected
@@ -55,9 +66,11 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 
 	switch msg := m.(type) {
 	case *p2p.RequestMessage:
+		//log.Println("Recv.RequestMessage", SenderPublicHash.String(), msg.Height)
 		fr.statusLock.Lock()
 		status, has := fr.statusMap[ID]
 		fr.statusLock.Unlock()
+
 		if has {
 			if msg.Height < status.Height {
 				if msg.Height+uint32(msg.Count) <= status.Height {
@@ -81,8 +94,10 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 		if err != nil {
 			return err
 		}
-		fr.sendMessage(0, SenderPublicHash, bs)
+		fr.sendMessagePacket(0, SenderPublicHash, bs)
+		//log.Println("Send.BlockMessage", SenderPublicHash.String(), msg.Height)
 	case *p2p.StatusMessage:
+		//log.Println("Recv.StatusMessage", SenderPublicHash.String(), msg.Height)
 		fr.statusLock.Lock()
 		if status, has := fr.statusMap[ID]; has {
 			if status.Height < msg.Height {
@@ -93,25 +108,7 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 
 		Height := fr.cs.cn.Provider().Height()
 		if Height < msg.Height {
-			enableCount := 0
-			for i := Height + 1; i <= Height+10 && i <= msg.Height; i++ {
-				if !fr.requestTimer.Exist(i) {
-					if !fr.requestNodeTimer.Exist(i) {
-						enableCount++
-					}
-				}
-			}
-			if Height%10 == 0 && enableCount == 10 {
-				fr.sendRequestBlockToNode(SenderPublicHash, Height+1, 1)
-			} else {
-				for i := Height + 1; i <= Height+10 && i <= msg.Height; i++ {
-					if !fr.requestTimer.Exist(i) {
-						if !fr.requestNodeTimer.Exist(i) {
-							fr.sendRequestBlockToNode(SenderPublicHash, i, 1)
-						}
-					}
-				}
-			}
+			fr.tryRequestBlocks()
 		} else {
 			h, err := fr.cs.cn.Provider().Hash(msg.Height)
 			if err != nil {
@@ -124,6 +121,7 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 			}
 		}
 	case *p2p.BlockMessage:
+		//log.Println("Recv.BlockMessage", SenderPublicHash.String(), msg.Blocks[0].Header.Height)
 		for _, b := range msg.Blocks {
 			if err := fr.addBlock(b); err != nil {
 				if err == chain.ErrFoundForkedBlock {
@@ -171,55 +169,45 @@ func (fr *FormulatorNode) tryRequestBlocks() {
 	fr.requestLock.Lock()
 	defer fr.requestLock.Unlock()
 
-	Height := fr.cs.cn.Provider().Height()
-	for q := uint32(0); q < 10; q++ {
-		BaseHeight := Height + q*10
-
-		var LimitHeight uint32
-		var selectedPubHash string
-		fr.statusLock.Lock()
-		for pubhash, status := range fr.statusMap {
-			if BaseHeight+10 <= status.Height {
-				selectedPubHash = pubhash
-				LimitHeight = status.Height
-				break
-			}
-		}
-		if len(selectedPubHash) == 0 {
+	BaseHeight := fr.cs.cn.Provider().Height() + 1
+	for i := uint32(0); i < 10; i++ {
+		TargetHeight := BaseHeight + i
+		if !fr.requestNodeTimer.Exist(TargetHeight) {
+			enables := []string{}
+			fr.statusLock.Lock()
 			for pubhash, status := range fr.statusMap {
-				if BaseHeight <= status.Height {
-					selectedPubHash = pubhash
-					LimitHeight = status.Height
-					break
+				if status.Height >= TargetHeight {
+					enables = append(enables, pubhash)
 				}
 			}
-		}
-		fr.statusLock.Unlock()
+			fr.statusLock.Unlock()
 
-		if len(selectedPubHash) == 0 {
-			break
-		}
-		enableCount := 0
-		for i := BaseHeight + 1; i <= BaseHeight+10 && i <= LimitHeight; i++ {
-			if !fr.requestTimer.Exist(i) {
-				if !fr.requestNodeTimer.Exist(i) {
-					enableCount++
-				}
-			}
-		}
-
-		var TargetPublicHash common.PublicHash
-		copy(TargetPublicHash[:], []byte(selectedPubHash))
-		if enableCount == 10 {
-			fr.sendRequestBlockToNode(TargetPublicHash, BaseHeight+1, 10)
-		} else if enableCount > 0 {
-			for i := BaseHeight + 1; i <= BaseHeight+10 && i <= LimitHeight; i++ {
-				if !fr.requestTimer.Exist(i) {
-					if !fr.requestNodeTimer.Exist(i) {
-						fr.sendRequestBlockToNode(TargetPublicHash, i, 1)
-					}
-				}
+			if len(enables) > 0 {
+				idx := rand.Intn(len(enables))
+				var TargetPublicHash common.PublicHash
+				copy(TargetPublicHash[:], []byte(enables[idx]))
+				fr.sendRequestBlockToNode(TargetPublicHash, TargetHeight, 1)
 			}
 		}
 	}
+
+	/*
+		var TargetPublicHash common.PublicHash
+		copy(TargetPublicHash[:], []byte(selectedPubHash))
+		enableCount := 0
+		for i := Height + 1; i <= Height+10 && i <= LimitHeight; i++ {
+			if !fr.requestNodeTimer.Exist(i) {
+				enableCount++
+			}
+		}
+		if Height%10 == 0 && enableCount == 10 {
+			fr.sendRequestBlockToNode(TargetPublicHash, Height+1, 10)
+		} else {
+			for i := Height + 1; i <= Height+10 && i <= LimitHeight; i++ {
+				if !fr.requestNodeTimer.Exist(i) {
+					fr.sendRequestBlockToNode(TargetPublicHash, i, 1)
+				}
+			}
+		}
+	*/
 }

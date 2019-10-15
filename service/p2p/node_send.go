@@ -8,36 +8,36 @@ import (
 
 func (nd *Node) sendMessage(Priority int, Target common.PublicHash, m interface{}) {
 	nd.sendQueues[Priority].Push(&SendMessageItem{
-		Target:  Target,
-		Message: m,
+		Target: Target,
+		Packet: MessageToPacket(m),
 	})
 }
 
-func (nd *Node) sendMessagePacket(Priority int, Target common.PublicHash, raw []byte) {
+func (nd *Node) sendMessagePacket(Priority int, Target common.PublicHash, bs []byte) {
 	nd.sendQueues[Priority].Push(&SendMessageItem{
 		Target: Target,
-		Packet: raw,
+		Packet: bs,
 	})
 }
 
 func (nd *Node) broadcastMessage(Priority int, m interface{}) {
 	nd.sendQueues[Priority].Push(&SendMessageItem{
-		Message: m,
+		Packet: MessageToPacket(m),
 	})
 }
 
 func (nd *Node) limitCastMessage(Priority int, m interface{}) {
 	nd.sendQueues[Priority].Push(&SendMessageItem{
-		Message: m,
-		Limit:   3,
+		Packet: MessageToPacket(m),
+		Limit:  3,
 	})
 }
 
 func (nd *Node) exceptLimitCastMessage(Priority int, Target common.PublicHash, m interface{}) {
 	nd.sendQueues[Priority].Push(&SendMessageItem{
-		Target:  Target,
-		Message: m,
-		Limit:   3,
+		Target: Target,
+		Packet: MessageToPacket(m),
+		Limit:  3,
 	})
 }
 
@@ -47,7 +47,7 @@ func (nd *Node) sendStatusTo(TargetPubHash common.PublicHash) error {
 	}
 
 	cp := nd.cn.Provider()
-	height, lastHash, _ := cp.LastStatus()
+	height, lastHash := cp.LastStatus()
 	nm := &StatusMessage{
 		Version:  cp.Version(),
 		Height:   height,
@@ -59,7 +59,7 @@ func (nd *Node) sendStatusTo(TargetPubHash common.PublicHash) error {
 
 func (nd *Node) broadcastStatus() error {
 	cp := nd.cn.Provider()
-	height, lastHash, _ := cp.LastStatus()
+	height, lastHash := cp.LastStatus()
 	nm := &StatusMessage{
 		Version:  cp.Version(),
 		Height:   height,

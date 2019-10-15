@@ -3,7 +3,6 @@ package pof
 import (
 	"bytes"
 	"log"
-	"runtime"
 	"sync"
 	"time"
 
@@ -197,47 +196,49 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 	go fr.requestTimer.Run()
 	go fr.requestNodeTimer.Run()
 
-	WorkerCount := runtime.NumCPU() - 1
-	if WorkerCount < 1 {
-		WorkerCount = 1
-	}
-	for i := 0; i < WorkerCount; i++ {
-		go func() {
-			for !fr.isClose {
-				Count := 0
+	/*
+		WorkerCount := runtime.NumCPU() - 1
+		if WorkerCount < 1 {
+			WorkerCount = 1
+		}
+		for i := 0; i < WorkerCount; i++ {
+			go func() {
 				for !fr.isClose {
-					v := fr.txWaitQ.Pop()
-					if v == nil {
-						break
-					}
-					item := v.(*p2p.TxMsgItem)
-					if err := fr.addTx(item.TxHash, item.Message.TxType, item.Message.Tx, item.Message.Sigs); err != nil {
-						if err != p2p.ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
-							rlog.Println("TransactionError", chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String(), err.Error())
-							if len(item.PeerID) > 0 {
-								fr.nm.RemovePeer(item.PeerID)
+					Count := 0
+					for !fr.isClose {
+						v := fr.txWaitQ.Pop()
+						if v == nil {
+							break
+						}
+						item := v.(*p2p.TxMsgItem)
+						if err := fr.addTx(item.TxHash, item.Message.TxType, item.Message.Tx, item.Message.Sigs); err != nil {
+							if err != p2p.ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
+								rlog.Println("TransactionError", chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String(), err.Error())
+								if len(item.PeerID) > 0 {
+									fr.nm.RemovePeer(item.PeerID)
+								}
 							}
 						}
-					}
-					rlog.Println("TransactionAppended", chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String())
+						rlog.Println("TransactionAppended", chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String())
 
-					if len(item.PeerID) > 0 {
-						var SenderPublicHash common.PublicHash
-						copy(SenderPublicHash[:], []byte(item.PeerID))
-						fr.exceptLimitCastMessage(1, SenderPublicHash, item.Message)
-					} else {
-						fr.limitCastMessage(1, item.Message)
-					}
+						if len(item.PeerID) > 0 {
+							var SenderPublicHash common.PublicHash
+							copy(SenderPublicHash[:], []byte(item.PeerID))
+							fr.exceptLimitCastMessage(1, SenderPublicHash, item.Message)
+						} else {
+							fr.limitCastMessage(1, item.Message)
+						}
 
-					Count++
-					if Count > 500 {
-						break
+						Count++
+						if Count > 500 {
+							break
+						}
 					}
+					time.Sleep(100 * time.Millisecond)
 				}
-				time.Sleep(50 * time.Millisecond)
-			}
-		}()
-	}
+			}()
+		}
+	*/
 
 	go func() {
 		for !fr.isClose {
@@ -266,7 +267,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					break
 				}
 			}
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 		}
 	}()
 
@@ -281,24 +282,18 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					}
 					hasMessage = true
 					item := v.(*p2p.SendMessageItem)
-					if len(item.Packet) > 0 {
-						fr.nm.SendTo(item.Target, item.Packet)
-					} else {
-						bs := p2p.MessageToPacket(item.Message)
-
-						var EmptyHash common.PublicHash
-						if bytes.Equal(item.Target[:], EmptyHash[:]) {
-							if item.Limit > 0 {
-								fr.nm.ExceptCastLimit("", bs, item.Limit)
-							} else {
-								fr.nm.BroadcastPacket(bs)
-							}
+					var EmptyHash common.PublicHash
+					if bytes.Equal(item.Target[:], EmptyHash[:]) {
+						if item.Limit > 0 {
+							fr.nm.ExceptCastLimit("", item.Packet, item.Limit)
 						} else {
-							if item.Limit > 0 {
-								fr.nm.ExceptCastLimit(string(item.Target[:]), bs, item.Limit)
-							} else {
-								fr.nm.SendTo(item.Target, bs)
-							}
+							fr.nm.BroadcastPacket(item.Packet)
+						}
+					} else {
+						if item.Limit > 0 {
+							fr.nm.ExceptCastLimit(string(item.Target[:]), item.Packet, item.Limit)
+						} else {
+							fr.nm.SendTo(item.Target, item.Packet)
 						}
 					}
 					break
@@ -307,36 +302,31 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					break
 				}
 			}
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 		}
 	}()
 
-	blockTimer := time.NewTimer(time.Millisecond)
-	blockRequestTimer := time.NewTimer(time.Millisecond)
+	go func() {
+		for !fr.isClose {
+			fr.tryRequestBlocks()
+			fr.tryRequestNext()
+			time.Sleep(500 * time.Millisecond)
+		}
+	}()
+
 	for !fr.isClose {
-		select {
-		case <-blockTimer.C:
-			fr.Lock()
-			hasItem := false
-			TargetHeight := uint64(fr.cs.cn.Provider().Height() + 1)
-			Count := 0
-			item := fr.blockQ.PopUntil(TargetHeight)
-			for item != nil {
-				b := item.(*types.Block)
-				gi, has := fr.lastGenItemMap[b.Header.Height]
-				isConnected := false
-				if has {
-					if gi.BlockGen != nil && gi.Context != nil {
-						if gi.ObSign == nil {
-							gi.ObSign = &BlockObSignMessage{
-								TargetHeight: b.Header.Height,
-								BlockSign: &types.BlockSign{
-									GeneratorSignature: b.Signatures[0],
-									HeaderHash:         encoding.Hash(b.Header),
-								},
-								ObserverSignatures: b.Signatures[1:],
-							}
-						}
+		fr.Lock()
+		hasItem := false
+		TargetHeight := uint64(fr.cs.cn.Provider().Height() + 1)
+		Count := 0
+		item := fr.blockQ.PopUntil(TargetHeight)
+		for item != nil {
+			b := item.(*types.Block)
+			gi, has := fr.lastGenItemMap[b.Header.Height]
+			isConnected := false
+			if has {
+				if gi.BlockGen != nil && gi.Context != nil {
+					if gi.BlockGen.Block.Header.Generator == b.Header.Generator {
 						if err := fr.cs.ct.ConnectBlockWithContext(b, gi.Context); err != nil {
 							log.Println("blockQ.ConnectBlockWithContext", err)
 						} else {
@@ -344,34 +334,41 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 						}
 					}
 				}
-				if !isConnected {
-					if err := fr.cs.cn.ConnectBlock(b); err != nil {
-						break
-					}
-				}
-				fr.cleanPool(b)
-				rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockConnected", b.Header.Generator.String(), b.Header.Height, len(b.Transactions))
-				delete(fr.lastGenItemMap, b.Header.Height)
-				TargetHeight++
-				Count++
-				if Count > 100 {
+			}
+			if !isConnected {
+				if err := fr.cs.cn.ConnectBlock(b); err != nil {
 					break
 				}
-				item = fr.blockQ.PopUntil(TargetHeight)
-				hasItem = true
 			}
-			fr.Unlock()
-
-			if hasItem {
-				fr.broadcastStatus()
-				fr.tryRequestBlocks()
+			fr.cleanPool(b)
+			rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockConnected", b.Header.Generator.String(), b.Header.Height, len(b.Transactions))
+			if fr.lastReqMessage != nil {
+				if b.Header.Height <= fr.lastReqMessage.TargetHeight+fr.cs.maxBlocksPerFormulator {
+					if b.Header.Generator != fr.Config.Formulator {
+						fr.lastReqMessage = nil
+					}
+				}
 			}
+			delete(fr.lastGenItemMap, b.Header.Height)
+			TargetHeight++
+			Count++
+			if Count > 10 {
+				break
+			}
+			item = fr.blockQ.PopUntil(TargetHeight)
+			hasItem = true
+		}
+		fr.Unlock()
 
-			blockTimer.Reset(50 * time.Millisecond)
-		case <-blockRequestTimer.C:
+		if hasItem {
+			fr.broadcastStatus()
 			fr.tryRequestBlocks()
-			fr.tryRequestNext()
-			blockRequestTimer.Reset(500 * time.Millisecond)
+		}
+
+		if hasItem {
+			time.Sleep(50 * time.Millisecond)
+		} else {
+			time.Sleep(200 * time.Millisecond)
 		}
 	}
 }

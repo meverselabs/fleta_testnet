@@ -46,11 +46,13 @@ func NewNodeMesh(ChainID uint8, key key.Key, SeedNodeMap map[common.PublicHash]s
 		clientPeerMap: map[string]peer.Peer{},
 		serverPeerMap: map[string]peer.Peer{},
 	}
-	manager, err := nodepoolmanage.NewNodePoolManage(peerStorePath, ms)
-	if err != nil {
-		panic(err)
-	}
-	ms.nodePoolManager = manager
+	/*
+		manager, err := nodepoolmanage.NewNodePoolManage(peerStorePath, ms)
+		if err != nil {
+			panic(err)
+		}
+		ms.nodePoolManager = manager
+	*/
 
 	for PubHash, v := range SeedNodeMap {
 		ms.nodeSet[PubHash] = v
@@ -269,7 +271,7 @@ func (ms *NodeMesh) client(Address string, TargetPubHash common.PublicHash) erro
 	if pubhash != TargetPubHash {
 		return common.ErrInvalidPublicHash
 	}
-	duration := time.Since(start)
+	//duration := time.Since(start)
 	var ipAddress string
 	if addr, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
 		ipAddress = addr.IP.String()
@@ -277,7 +279,7 @@ func (ms *NodeMesh) client(Address string, TargetPubHash common.PublicHash) erro
 	ipAddress += bindAddress
 
 	ID := string(pubhash[:])
-	ms.nodePoolManager.NewNode(ipAddress, ID, duration)
+	//ms.nodePoolManager.NewNode(ipAddress, ID, duration)
 	p := NewTCPPeer(conn, ID, pubhash.String(), start.UnixNano())
 
 	ms.Lock()
@@ -319,7 +321,7 @@ func (ms *NodeMesh) server(BindAddress string) error {
 				rlog.Println("[recvHandshakeAck]", err)
 				return
 			}
-			duration := time.Since(start)
+			//duration := time.Since(start)
 			var ipAddress string
 			if addr, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
 				ipAddress = addr.IP.String()
@@ -327,7 +329,7 @@ func (ms *NodeMesh) server(BindAddress string) error {
 			ipAddress += bindAddress
 
 			ID := string(pubhash[:])
-			ms.nodePoolManager.NewNode(ipAddress, ID, duration)
+			//ms.nodePoolManager.NewNode(ipAddress, ID, duration)
 			p := NewTCPPeer(conn, ID, pubhash.String(), start.UnixNano())
 
 			ms.Lock()

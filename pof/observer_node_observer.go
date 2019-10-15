@@ -283,24 +283,22 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 						rlog.Println(cp.Height(), "BroadcastRaw", msg.Block.Header.Height, ob.round.RoundState, len(ob.adjustFormulatorMap()), ob.fs.PeerCount(), (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
 					}
 
-					/*
-						adjustMap := ob.adjustFormulatorMap()
-						delete(adjustMap, ob.round.MinRoundVoteAck.Formulator)
-						var NextTop *Rank
-						if len(adjustMap) > 0 {
-							r, _, err := ob.cs.rt.TopRankInMap(adjustMap)
-							if err != nil {
-								return err
-							}
-							NextTop = r
+					adjustMap := ob.adjustFormulatorMap()
+					delete(adjustMap, ob.round.MinRoundVoteAck.Formulator)
+					var NextTop *Rank
+					if len(adjustMap) > 0 {
+						r, _, err := ob.cs.rt.TopRankInMap(adjustMap)
+						if err != nil {
+							return err
 						}
-						if NextTop != nil {
-							ob.sendMessagePacket(1, NextTop.Address, raw, msg.Block.Header.Height)
-							if debug.DEBUG {
-								rlog.Println(cp.Height(), "BroadcastNextTop", msg.Block.Header.Height, ob.round.RoundState, len(ob.adjustFormulatorMap()), ob.fs.PeerCount(), (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
-							}
+						NextTop = r
+					}
+					if NextTop != nil {
+						ob.sendMessagePacket(1, NextTop.Address, raw)
+						if debug.DEBUG {
+							rlog.Println(cp.Height(), "BroadcastNextTop", msg.Block.Header.Height, ob.round.RoundState, len(ob.adjustFormulatorMap()), ob.fs.PeerCount(), (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
 						}
-					*/
+					}
 				}
 			}
 		}

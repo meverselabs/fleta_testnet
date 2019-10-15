@@ -164,7 +164,7 @@ func (nd *Node) Run(BindAddress string) {
 						break
 					}
 				}
-				time.Sleep(50 * time.Millisecond)
+				time.Sleep(100 * time.Millisecond)
 			}
 		}()
 	}
@@ -196,7 +196,7 @@ func (nd *Node) Run(BindAddress string) {
 					break
 				}
 			}
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 		}
 	}()
 
@@ -211,27 +211,20 @@ func (nd *Node) Run(BindAddress string) {
 					}
 					hasMessage = true
 					item := v.(*SendMessageItem)
-					if len(item.Packet) > 0 {
-						nd.ms.SendTo(item.Target, item.Packet)
-					} else {
-						bs := MessageToPacket(item.Message)
-
-						var EmptyHash common.PublicHash
-						if bytes.Equal(item.Target[:], EmptyHash[:]) {
-							if item.Limit > 0 {
-								nd.ms.ExceptCastLimit("", bs, item.Limit)
-							} else {
-								nd.ms.BroadcastPacket(bs)
-							}
+					var EmptyHash common.PublicHash
+					if bytes.Equal(item.Target[:], EmptyHash[:]) {
+						if item.Limit > 0 {
+							nd.ms.ExceptCastLimit("", item.Packet, item.Limit)
 						} else {
-							if item.Limit > 0 {
-								nd.ms.ExceptCastLimit(string(item.Target[:]), bs, item.Limit)
-							} else {
-								nd.ms.SendTo(item.Target, bs)
-							}
+							nd.ms.BroadcastPacket(item.Packet)
+						}
+					} else {
+						if item.Limit > 0 {
+							nd.ms.ExceptCastLimit(string(item.Target[:]), item.Packet, item.Limit)
+						} else {
+							nd.ms.SendTo(item.Target, item.Packet)
 						}
 					}
-					break
 				}
 				if !hasMessage {
 					break
@@ -241,43 +234,46 @@ func (nd *Node) Run(BindAddress string) {
 		}
 	}()
 
-	blockTimer := time.NewTimer(time.Millisecond)
-	blockRequestTimer := time.NewTimer(time.Millisecond)
-	for !nd.isClose {
-		select {
-		case <-blockTimer.C:
-			nd.Lock()
-			hasItem := false
-			TargetHeight := uint64(nd.cn.Provider().Height() + 1)
-			Count := 0
-			item := nd.blockQ.PopUntil(TargetHeight)
-			for item != nil {
-				b := item.(*types.Block)
-				if err := nd.cn.ConnectBlock(b); err != nil {
-					rlog.Println(err)
-					panic(err)
-					break
-				}
-				rlog.Println("Node", nd.myPublicHash.String(), nd.cn.Provider().Height(), "BlockConnected", b.Header.Generator.String(), b.Header.Height)
-				TargetHeight++
-				Count++
-				if Count > 10 {
-					break
-				}
-				item = nd.blockQ.PopUntil(TargetHeight)
-				hasItem = true
-			}
-			nd.Unlock()
-
-			if hasItem {
-				nd.broadcastStatus()
-				nd.tryRequestBlocks()
-			}
-
-			blockTimer.Reset(50 * time.Millisecond)
-		case <-blockRequestTimer.C:
+	go func() {
+		for !nd.isClose {
 			nd.tryRequestBlocks()
-			blockRequestTimer.Reset(500 * time.Millisecond)
+			time.Sleep(500 * time.Millisecond)
+		}
+	}()
+
+	for !nd.isClose {
+		nd.Lock()
+		hasItem := false
+		TargetHeight := uint64(nd.cn.Provider().Height() + 1)
+		Count := 0
+		item := nd.blockQ.PopUntil(TargetHeight)
+		for item != nil {
+			b := item.(*types.Block)
+			if err := nd.cn.ConnectBlock(b); err != nil {
+				rlog.Println(err)
+				panic(err)
+				break
+			}
+			rlog.Println("Node", nd.myPublicHash.String(), nd.cn.Provider().Height(), "BlockConnected", b.Header.Generator.String(), b.Header.Height)
+			TargetHeight++
+			Count++
+			if Count > 10 {
+				break
+			}
+			item = nd.blockQ.PopUntil(TargetHeight)
+			hasItem = true
+		}
+		nd.Unlock()
+
+		if hasItem {
+			nd.broadcastStatus()
+			nd.tryRequestBlocks()
+		}
+
+		if hasItem {
+			time.Sleep(50 * time.Millisecond)
+		} else {
+			time.Sleep(200 * time.Millisecond)
 		}
 	}
 }
@@ -293,9 +289,14 @@ func (nd *Node) OnConnected(p peer.Peer) {
 	nd.statusMap[p.ID()] = &Status{}
 	nd.statusLock.Unlock()
 
-	var SenderPublicHash common.PublicHash
-	copy(SenderPublicHash[:], []byte(p.ID()))
-	nd.sendStatusTo(SenderPublicHash)
+	cp := nd.cn.Provider()
+	height, lastHash := cp.LastStatus()
+	nm := &StatusMessage{
+		Version:  cp.Version(),
+		Height:   height,
+		LastHash: lastHash,
+	}
+	p.SendPacket(MessageToPacket(nm))
 }
 
 // OnDisconnected called when peer disconnected
@@ -548,24 +549,26 @@ func (nd *Node) tryRequestBlocks() {
 
 		var LimitHeight uint32
 		var selectedPubHash string
+		var MaxHeight uint32
+		var maxPubHash string
 		nd.statusLock.Lock()
 		for pubhash, status := range nd.statusMap {
+			if MaxHeight < status.Height {
+				maxPubHash = pubhash
+				MaxHeight = status.Height
+			}
 			if BaseHeight+10 <= status.Height {
 				selectedPubHash = pubhash
 				LimitHeight = status.Height
 				break
 			}
 		}
-		if len(selectedPubHash) == 0 {
-			for pubhash, status := range nd.statusMap {
-				if BaseHeight <= status.Height {
-					selectedPubHash = pubhash
-					LimitHeight = status.Height
-					break
-				}
-			}
-		}
 		nd.statusLock.Unlock()
+
+		if LimitHeight == 0 {
+			selectedPubHash = maxPubHash
+			LimitHeight = MaxHeight
+		}
 
 		if len(selectedPubHash) == 0 {
 			break

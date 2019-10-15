@@ -14,7 +14,7 @@ func (ob *ObserverNode) OnFormulatorConnected(p peer.Peer) {
 	ob.statusLock.Unlock()
 
 	cp := ob.cs.cn.Provider()
-	height, lastHash, _ := cp.LastStatus()
+	height, lastHash := cp.LastStatus()
 	nm := &p2p.StatusMessage{
 		Version:  cp.Version(),
 		Height:   height,

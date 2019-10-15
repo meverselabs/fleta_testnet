@@ -28,7 +28,6 @@ type RecvMessageItem struct {
 type SendMessageItem struct {
 	Target  common.PublicHash
 	Address common.Address
-	Message interface{}
 	Limit   int
 	Packet  []byte
 }

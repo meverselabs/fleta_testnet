@@ -26,7 +26,6 @@ type Store struct {
 	SeqMapLock sync.Mutex
 	SeqMap     map[common.Address]uint64
 	cache      storecache
-	timer      *time.Timer
 	closeLock  sync.RWMutex
 	isClose    bool
 }
@@ -40,11 +39,9 @@ type storecache struct {
 
 // NewStore returns a Store
 func NewStore(db backend.StoreBackend, cdb *pile.DB, ChainID uint8, name string, version uint16) (*Store, error) {
-	timer := time.NewTimer(5 * time.Minute)
 	st := &Store{
 		db:      db,
 		cdb:     cdb,
-		timer:   timer,
 		chainID: ChainID,
 		name:    name,
 		version: version,
@@ -52,15 +49,13 @@ func NewStore(db backend.StoreBackend, cdb *pile.DB, ChainID uint8, name string,
 	}
 
 	go func() {
-		for range timer.C {
+		for !st.isClose {
 			st.closeLock.RLock()
 			if st.db != nil {
 				st.db.Shrink()
 			}
-			if st.timer != nil {
-				st.timer.Reset(5 * time.Minute)
-			}
 			st.closeLock.RUnlock()
+			time.Sleep(5 * time.Minute)
 		}
 	}()
 
@@ -80,12 +75,8 @@ func (st *Store) Close() {
 	if st.cdb != nil {
 		st.cdb.Close()
 	}
-	if st.timer != nil {
-		st.timer.Stop()
-	}
 	st.cdb = nil
 	st.db = nil
-	st.timer = nil
 }
 
 // ChainID returns the chain id of the target chain
@@ -114,24 +105,16 @@ func (st *Store) NewLoaderWrapper(pid uint8) types.LoaderWrapper {
 }
 
 // LastStatus returns the recored target height, prev hash and timestamp
-func (st *Store) LastStatus() (uint32, hash.Hash256, uint64) {
+func (st *Store) LastStatus() (uint32, hash.Hash256) {
 	height := st.Height()
 	h, err := st.Hash(height)
 	if err != nil {
 		panic(err)
 	}
 	if height == 0 {
-		return 0, h, 0
+		return 0, h
 	}
-	bh, err := st.Header(height)
-	if err != nil {
-		if err != ErrStoreClosed {
-			// should have not reabh
-			panic(err)
-		}
-		return 0, hash.Hash256{}, 0
-	}
-	return bh.Height, h, bh.Timestamp
+	return height, h
 }
 
 // LastHash returns the last hash of the chain
@@ -149,10 +132,16 @@ func (st *Store) LastHash() hash.Hash256 {
 
 // LastTimestamp returns the last timestamp of the chain
 func (st *Store) LastTimestamp() uint64 {
+	height := st.Height()
 	if st.Height() == 0 {
 		return 0
 	}
-	bh, err := st.Header(st.Height())
+	if st.cache.cached {
+		if st.cache.height == height {
+			return st.cache.heightBlock.Header.Timestamp
+		}
+	}
+	bh, err := st.Header(height)
 	if err != nil {
 		if err != ErrStoreClosed {
 			// should have not reabh

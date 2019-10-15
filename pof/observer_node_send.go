@@ -10,17 +10,17 @@ import (
 	"github.com/fletaio/fleta/service/p2p"
 )
 
+func (ob *ObserverNode) sendMessage(Priority int, Address common.Address, m interface{}) {
+	ob.sendQueues[Priority].Push(&p2p.SendMessageItem{
+		Address: Address,
+		Packet:  p2p.MessageToPacket(m),
+	})
+}
+
 func (ob *ObserverNode) sendMessagePacket(Priority int, Address common.Address, bs []byte) {
 	ob.sendQueues[Priority].Push(&p2p.SendMessageItem{
 		Address: Address,
 		Packet:  bs,
-	})
-}
-
-func (ob *ObserverNode) sendMessage(Priority int, Address common.Address, m interface{}) {
-	ob.sendQueues[Priority].Push(&p2p.SendMessageItem{
-		Address: Address,
-		Message: m,
 	})
 }
 
@@ -31,7 +31,7 @@ func (ob *ObserverNode) sendRoundVote() error {
 	}
 
 	cp := ob.cs.cn.Provider()
-	height, lastHash, _ := cp.LastStatus()
+	height, lastHash := cp.LastStatus()
 	nm := &RoundVoteMessage{
 		RoundVote: &RoundVote{
 			ChainID:              cp.ChainID(),
@@ -79,7 +79,7 @@ func (ob *ObserverNode) sendRoundVoteTo(TargetPubHash common.PublicHash) error {
 	}
 
 	cp := ob.cs.cn.Provider()
-	height, lastHash, _ := cp.LastStatus()
+	height, lastHash := cp.LastStatus()
 	if ob.round.RoundState == BlockVoteState {
 		MyMsg, has := ob.round.RoundVoteMessageMap[ob.myPublicHash]
 		if !has {
@@ -207,7 +207,7 @@ func (ob *ObserverNode) sendRoundVoteAckTo(TargetPubHash common.PublicHash) erro
 			},
 		}
 		cp := ob.cs.cn.Provider()
-		height, lastHash, _ := cp.LastStatus()
+		height, lastHash := cp.LastStatus()
 		TargetHeight := height + 1
 		if MyMsg.RoundVoteAck.TargetHeight != TargetHeight {
 			nm.RoundVoteAck.TimeoutCount = 0
@@ -380,7 +380,7 @@ func (ob *ObserverNode) sendStatusTo(TargetPubHash common.PublicHash) error {
 	}
 
 	cp := ob.cs.cn.Provider()
-	height, lastHash, _ := cp.LastStatus()
+	height, lastHash := cp.LastStatus()
 	nm := &p2p.StatusMessage{
 		Version:  cp.Version(),
 		Height:   height,
@@ -392,7 +392,7 @@ func (ob *ObserverNode) sendStatusTo(TargetPubHash common.PublicHash) error {
 
 func (ob *ObserverNode) broadcastStatus() error {
 	cp := ob.cs.cn.Provider()
-	height, lastHash, _ := cp.LastStatus()
+	height, lastHash := cp.LastStatus()
 	nm := &p2p.StatusMessage{
 		Version:  cp.Version(),
 		Height:   height,
