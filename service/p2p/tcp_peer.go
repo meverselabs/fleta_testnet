@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"bytes"
+	"log"
 	"net"
 	"sync/atomic"
 	"time"
@@ -134,15 +135,18 @@ func (p *TCPPeer) SendPacket(bs []byte) {
 	buffer.Write(bs[0:4])
 	buffer.Write(bs[6:])
 	if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		log.Println(p.name, "SendPacket", err)
 		p.Close()
 		return
 	}
 	if _, err := p.conn.Write(buffer.Bytes()); err != nil {
+		log.Println(p.name, "SendPacket", err)
 		p.Close()
 		return
 	}
 	/*
 		if _, err := p.conn.Write(bs); err != nil {
+			log.Println(p.name, "SendPacket", err)
 			p.Close()
 			return
 		}

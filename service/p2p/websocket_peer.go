@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"log"
 	"sync/atomic"
 	"time"
 
@@ -84,10 +85,12 @@ func (p *WebsocketPeer) ReadPacket() ([]byte, error) {
 // SendPacket sends packet to the WebsocketPeer
 func (p *WebsocketPeer) SendPacket(bs []byte) {
 	if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		log.Println(p.name, "SendPacket", err)
 		p.Close()
 		return
 	}
 	if err := p.conn.WriteMessage(websocket.BinaryMessage, bs); err != nil {
+		log.Println(p.name, "SendPacket", err)
 		p.Close()
 		return
 	}
