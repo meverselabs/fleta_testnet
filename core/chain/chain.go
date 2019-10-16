@@ -338,13 +338,11 @@ func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context) error
 		}
 		ctw := types.NewContextWrapper(pid, ctx)
 
-		snv := ctw.Snapshot()
+		sn := ctw.Snapshot()
 		if err := tx.Validate(p, ctw, signers); err != nil {
-			ctw.Revert(snv)
+			ctw.Revert(sn)
 			return err
 		}
-		ctw.Revert(snv)
-		sn := ctw.Snapshot()
 		if at, is := tx.(AccountTransaction); is {
 			if at.Seq() != ctw.Seq(at.From())+1 {
 				ctw.Revert(sn)
