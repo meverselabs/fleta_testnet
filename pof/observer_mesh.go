@@ -203,7 +203,7 @@ func (ms *ObserverNodeMesh) client(Address string, TargetPubHash common.PublicHa
 	}
 
 	ID := string(pubhash[:])
-	p := p2p.NewTCPPeer(conn, ID, pubhash.String(), start.UnixNano())
+	p := p2p.NewTCPAsyncPeer(conn, ID, pubhash.String(), start.UnixNano())
 	ms.removePeerInMap(ID, ms.clientPeerMap)
 	ms.Lock()
 	ms.clientPeerMap[ID] = p
@@ -246,7 +246,7 @@ func (ms *ObserverNodeMesh) server(BindAddress string) error {
 			}
 
 			ID := string(pubhash[:])
-			p := p2p.NewTCPPeer(conn, ID, pubhash.String(), start.UnixNano())
+			p := p2p.NewTCPAsyncPeer(conn, ID, pubhash.String(), start.UnixNano())
 			ms.removePeerInMap(ID, ms.serverPeerMap)
 			ms.Lock()
 			ms.serverPeerMap[ID] = p

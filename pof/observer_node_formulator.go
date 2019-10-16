@@ -1,6 +1,8 @@
 package pof
 
 import (
+	"log"
+
 	"github.com/fletaio/fleta_testnet/common/rlog"
 	"github.com/fletaio/fleta_testnet/core/chain"
 	"github.com/fletaio/fleta_testnet/service/p2p"
@@ -38,7 +40,16 @@ func (ob *ObserverNode) onFormulatorRecv(p peer.Peer, bs []byte) error {
 	t := p2p.PacketMessageType(bs)
 	switch t {
 	case BlockGenMessageType:
-		ob.recvQueues[0].Push(item)
+		m, err := p2p.PacketToMessage(bs)
+		if err != nil {
+			log.Println("PacketToMessage", err)
+			ob.fs.RemovePeer(item.PeerID)
+			break
+		}
+		ob.messageQueue.Push(&messageItem{
+			Message: m,
+			Packet:  bs,
+		})
 	case p2p.RequestMessageType:
 		if ob.round.MinRoundVoteAck != nil && string(ob.round.MinRoundVoteAck.Formulator[:]) == p.ID() {
 			ob.recvQueues[0].Push(item)
@@ -57,11 +68,6 @@ func (ob *ObserverNode) onFormulatorRecv(p peer.Peer, bs []byte) error {
 func (ob *ObserverNode) handleFormulatorMessage(p peer.Peer, m interface{}, bs []byte) error {
 	cp := ob.cs.cn.Provider()
 	switch msg := m.(type) {
-	case *BlockGenMessage:
-		ob.messageQueue.Push(&messageItem{
-			Message: msg,
-			Packet:  bs,
-		})
 	case *p2p.RequestMessage:
 		ob.statusLock.Lock()
 		status, has := ob.statusMap[p.ID()]

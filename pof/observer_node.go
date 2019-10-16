@@ -189,7 +189,7 @@ func (ob *ObserverNode) Run(BindObserver string, BindFormulator string) {
 					break
 				}
 			}
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 		}
 	}()
 
@@ -219,37 +219,7 @@ func (ob *ObserverNode) Run(BindObserver string, BindFormulator string) {
 					break
 				}
 			}
-			time.Sleep(100 * time.Millisecond)
-		}
-	}()
-
-	go func() {
-		for !ob.isClose {
-			hasMessage := false
-			for !ob.isClose {
-				for _, q := range ob.sendQueues {
-					v := q.Pop()
-					if v == nil {
-						continue
-					}
-					hasMessage = true
-					item := v.(*p2p.SendMessageItem)
-					if len(item.Packet) > 0 {
-						if err := ob.fs.SendTo(item.Address, item.Packet); err != nil {
-							ob.fs.RemovePeer(string(item.Address[:]))
-						}
-					} else {
-						if err := ob.fs.SendTo(item.Address, item.Packet); err != nil {
-							ob.fs.RemovePeer(string(item.Address[:]))
-						}
-					}
-					break
-				}
-				if !hasMessage {
-					break
-				}
-			}
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 		}
 	}()
 

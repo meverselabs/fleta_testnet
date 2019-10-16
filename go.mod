@@ -7,10 +7,9 @@ require (
 	github.com/bluele/gcache v0.0.0-20190518031135-bc40bd653833
 	github.com/bluele/slack v0.0.0-20180528010058-b4b4d354a079
 	github.com/boltdb/bolt v1.3.1
-	github.com/cupcake/rdb v0.0.0-20161107195141-43ba34106c76 // indirect
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgraph-io/badger v1.6.0
-	github.com/edsrzf/mmap-go v1.0.0 // indirect
+	github.com/fletaio/fleta v0.0.0-20191011065842-349b4bf48d91
 	github.com/fletaio/webserver v0.0.0-20190926090427-5a62061ed9ca // indirect
 	github.com/gorilla/websocket v1.4.0
 	github.com/labstack/echo v3.3.10+incompatible
@@ -18,11 +17,7 @@ require (
 	github.com/mr-tron/base58 v1.1.2
 	github.com/petar/GoLLRB v0.0.0-20190514000832-33fb24c13b99
 	github.com/pkg/errors v0.8.1
-	github.com/remyoudompheng/bigfft v0.0.0-20190728182440-6a916e37a237 // indirect
-	github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726 // indirect
 	github.com/siddontang/ledisdb v0.0.0-20190202134119-8ceb77e66a92
-	github.com/siddontang/rdb v0.0.0-20150307021120-fc89ed2e418d // indirect
-	github.com/stretchr/objx v0.2.0 // indirect
 	github.com/syndtr/goleveldb v1.0.0
 	github.com/tidwall/btree v0.0.0-20170113224114-9876f1454cf0
 	github.com/tidwall/buntdb v1.1.0
@@ -30,7 +25,6 @@ require (
 	github.com/tidwall/grect v0.0.0-20161006141115-ba9a043346eb
 	github.com/tidwall/match v1.0.1
 	github.com/tidwall/rtree v0.0.0-20180113144539-6cd427091e0e
-	github.com/tidwall/tinyqueue v0.0.0-20180302190814-1e39f5511563 // indirect
 	github.com/urfave/cli v1.20.0
 	github.com/vmihailenco/msgpack v4.0.4+incompatible
 	github.com/xujiajun/nutsdb v0.4.0

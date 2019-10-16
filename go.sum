@@ -32,6 +32,8 @@ github.com/dustin/go-humanize v1.0.0 h1:VSnTsYCnlFHaM2/igO1h6X3HA71jcobQuxemgkq4
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/edsrzf/mmap-go v1.0.0 h1:CEBF7HpRnUCSJgGUb5h1Gm7e3VkmVDrR8lvWVLtrOFw=
 github.com/edsrzf/mmap-go v1.0.0/go.mod h1:YO35OhQPt3KJa3ryjFM5Bs14WD66h8eGKpfaBNrHW5M=
+github.com/fletaio/fleta v0.0.0-20191011065842-349b4bf48d91 h1:9rj+lDDO+OIrd6+OSv03Gnrk7gIZa9pCwQhtsF2Lhf0=
+github.com/fletaio/fleta v0.0.0-20191011065842-349b4bf48d91/go.mod h1:ZPvhqQln3P7mN5Opk4ib98yJAT6WZOlnAleR8ElKJ9s=
 github.com/fletaio/webserver v0.0.0-20190926090427-5a62061ed9ca h1:7jhSW1OI1O2NZQw19MPGk5n2oRuLk68loC7K19F/zgM=
 github.com/fletaio/webserver v0.0.0-20190926090427-5a62061ed9ca/go.mod h1:XwfXM59dgQevWarRrhCwvCtBaGVZz3fisUHCzrB7xHQ=
 github.com/fsnotify/fsnotify v1.4.7 h1:IXs+QLmnXW2CcXuY+8Mzv/fWEsPGWxqefPtCP5CnV9I=

@@ -102,7 +102,7 @@ func test() error {
 			}
 			back = contextDB
 		case 1:
-			contextDB, err := backend.Create("buntdb", cfg.StoreRoot+"/context")
+			contextDB, err := backend.Create("buntdb", cfg.StoreRoot+"/ob"+strconv.Itoa(i)+"/context")
 			if err != nil {
 				panic(err)
 			}
@@ -204,7 +204,7 @@ func test() error {
 			}
 			back = contextDB
 		case 1:
-			contextDB, err := backend.Create("buntdb", cfg.StoreRoot+"/context")
+			contextDB, err := backend.Create("buntdb", cfg.StoreRoot+"/fr"+strconv.Itoa(i)+"/context")
 			if err != nil {
 				panic(err)
 			}

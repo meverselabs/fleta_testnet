@@ -27,6 +27,7 @@ type genItem struct {
 	BlockGen *BlockGenMessage
 	ObSign   *BlockObSignMessage
 	Context  *types.Context
+	Recv     bool
 }
 
 // FormulatorConfig defines configuration of the formulator
@@ -265,7 +266,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					break
 				}
 			}
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 		}
 	}()
 
@@ -300,42 +301,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					break
 				}
 			}
-			time.Sleep(100 * time.Millisecond)
-		}
-	}()
-
-	go func() {
-		for !fr.isClose {
-			hasMessage := false
-			for !fr.isClose {
-				for _, q := range fr.sendQueues {
-					v := q.Pop()
-					if v == nil {
-						continue
-					}
-					hasMessage = true
-					item := v.(*p2p.SendMessageItem)
-					var EmptyHash common.PublicHash
-					if bytes.Equal(item.Target[:], EmptyHash[:]) {
-						if item.Limit > 0 {
-							fr.nm.ExceptCastLimit("", item.Packet, item.Limit)
-						} else {
-							fr.nm.BroadcastPacket(item.Packet)
-						}
-					} else {
-						if item.Limit > 0 {
-							fr.nm.ExceptCastLimit(string(item.Target[:]), item.Packet, item.Limit)
-						} else {
-							fr.nm.SendTo(item.Target, item.Packet)
-						}
-					}
-					break
-				}
-				if !hasMessage {
-					break
-				}
-			}
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 		}
 	}()
 
@@ -370,6 +336,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 			}
 			if !isConnected {
 				if err := fr.cs.cn.ConnectBlock(b); err != nil {
+					fr.Lock()
 					break
 				}
 			}

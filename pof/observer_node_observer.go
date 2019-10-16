@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/common/binutil"
 	"github.com/fletaio/fleta_testnet/common/debug"
 	"github.com/fletaio/fleta_testnet/common/rlog"
 	"github.com/fletaio/fleta_testnet/core/chain"
@@ -22,6 +23,7 @@ func (ob *ObserverNode) onObserverRecv(p peer.Peer, bs []byte) error {
 	if msg, is := m.(*BlockGenMessage); is {
 		ob.messageQueue.Push(&messageItem{
 			Message: msg,
+			Packet:  bs,
 		})
 	} else {
 		var pubhash common.PublicHash
@@ -245,7 +247,8 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 						Formulator:           ob.round.MinRoundVoteAck.Formulator,
 						FormulatorPublicHash: ob.round.MinRoundVoteAck.FormulatorPublicHash,
 					}
-					ob.sendMessage(0, ob.round.MinRoundVoteAck.Formulator, nm)
+					//ob.sendMessage(0, ob.round.MinRoundVoteAck.Formulator, nm)
+					ob.fs.SendTo(ob.round.MinRoundVoteAck.Formulator, p2p.MessageToPacket(nm))
 				}
 
 				br := ob.round.BlockRoundMap[ob.round.TargetHeight]
@@ -276,27 +279,58 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 		}
 
 		if ob.round.MinRoundVoteAck != nil {
-			if ob.round.MinRoundVoteAck.PublicHash == ob.myPublicHash && len(raw) > 0 {
+			if ob.round.MinRoundVoteAck.PublicHash == ob.myPublicHash {
 				if len(raw) > 0 {
 					ob.ms.BroadcastPacket(raw)
 					if debug.DEBUG {
-						rlog.Println(cp.Height(), "BroadcastRaw", msg.Block.Header.Height, ob.round.RoundState, len(ob.adjustFormulatorMap()), ob.fs.PeerCount(), (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
+						rlog.Println(cp.Height(), "BlockGenBroadcast", msg.Block.Header.Height, ob.round.RoundState, len(ob.adjustFormulatorMap()), ob.fs.PeerCount(), (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
+					}
+				}
+			} else {
+				if len(raw) > 0 {
+					var MaxValue uint64
+					var MaxID string
+					base := binutil.LittleEndian.Uint64(ob.round.MinRoundVoteAck.PublicHash[:])
+					IDs := []string{}
+					for _, p := range ob.ms.Peers() {
+						IDs = append(IDs, p.ID())
+					}
+					IDs = append(IDs, string(ob.myPublicHash[:]))
+					for _, ID := range IDs {
+						if ID != string(ob.round.MinRoundVoteAck.PublicHash[:]) {
+							value := binutil.LittleEndian.Uint64([]byte(ID))
+							var diff uint64
+							if base > value {
+								diff = base - value
+							} else {
+								diff = value - base
+							}
+							if MaxValue < diff {
+								MaxValue = diff
+								MaxID = ID
+							}
+						}
 					}
 
-					adjustMap := ob.adjustFormulatorMap()
-					delete(adjustMap, ob.round.MinRoundVoteAck.Formulator)
-					var NextTop *Rank
-					if len(adjustMap) > 0 {
-						r, _, err := ob.cs.rt.TopRankInMap(adjustMap)
-						if err != nil {
-							return err
+					var MaxHash common.PublicHash
+					copy(MaxHash[:], []byte(MaxID))
+					if ob.myPublicHash == MaxHash {
+						adjustMap := ob.adjustFormulatorMap()
+						delete(adjustMap, ob.round.MinRoundVoteAck.Formulator)
+
+						var NextTop *Rank
+						if len(adjustMap) > 0 {
+							r, _, err := ob.cs.rt.TopRankInMap(adjustMap)
+							if err != nil {
+								return err
+							}
+							NextTop = r
 						}
-						NextTop = r
-					}
-					if NextTop != nil {
-						ob.sendMessagePacket(1, NextTop.Address, raw)
-						if debug.DEBUG {
-							rlog.Println(cp.Height(), "BroadcastNextTop", msg.Block.Header.Height, ob.round.RoundState, len(ob.adjustFormulatorMap()), ob.fs.PeerCount(), (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
+						if NextTop != nil {
+							ob.sendMessagePacket(1, NextTop.Address, raw)
+							if debug.DEBUG {
+								rlog.Println(cp.Height(), "BlockGenToNextTop", msg.Block.Header.Height, ob.round.RoundState, len(ob.adjustFormulatorMap()), ob.fs.PeerCount(), (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
+							}
 						}
 					}
 				}
@@ -587,10 +621,10 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 					},
 					ObserverSignatures: sigs,
 				}
-				ob.sendMessage(0, ob.round.MinRoundVoteAck.Formulator, nm)
-
+				bs := p2p.MessageToPacket(nm)
+				ob.fs.SendTo(ob.round.MinRoundVoteAck.Formulator, bs)
 				if NextTop != nil {
-					ob.sendMessage(1, NextTop.Address, nm)
+					ob.fs.SendTo(NextTop.Address, bs)
 				}
 			} else {
 				if NextTop != nil {
