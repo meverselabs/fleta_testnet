@@ -51,13 +51,9 @@ func (ob *ObserverNode) onFormulatorRecv(p peer.Peer, bs []byte) error {
 			Packet:  bs,
 		})
 	case p2p.RequestMessageType:
-		if ob.round.MinRoundVoteAck != nil && string(ob.round.MinRoundVoteAck.Formulator[:]) == p.ID() {
-			ob.recvQueues[0].Push(item)
-		} else {
-			ob.recvQueues[1].Push(item)
-		}
+		ob.recvChan <- item
 	case p2p.StatusMessageType:
-		ob.recvQueues[1].Push(item)
+		ob.recvChan <- item
 	default:
 		panic(p2p.ErrUnknownMessage) //TEMP
 		return p2p.ErrUnknownMessage

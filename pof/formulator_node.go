@@ -62,8 +62,8 @@ type FormulatorNode struct {
 	txpool         *txpool.TransactionPool
 	txQ            *queue.ExpireQueue
 	txWaitQ        *queue.LinkedQueue
-	recvQueues     []*queue.Queue
-	sendQueues     []*queue.Queue
+	recvChan       chan *p2p.RecvMessageItem
+	sendChan       chan *p2p.SendMessageItem
 	singleCache    gcache.Cache
 	batchCache     gcache.Cache
 	isRunning      bool
@@ -96,18 +96,10 @@ func NewFormulatorNode(Config *FormulatorConfig, key key.Key, ndkey key.Key, Net
 		txpool:         txpool.NewTransactionPool(),
 		txQ:            queue.NewExpireQueue(),
 		txWaitQ:        queue.NewLinkedQueue(),
-		recvQueues: []*queue.Queue{
-			queue.NewQueue(), //block
-			queue.NewQueue(), //tx
-			queue.NewQueue(), //peer
-		},
-		sendQueues: []*queue.Queue{
-			queue.NewQueue(), //block
-			queue.NewQueue(), //tx
-			queue.NewQueue(), //peer
-		},
-		singleCache: gcache.New(500).LRU().Build(),
-		batchCache:  gcache.New(500).LRU().Build(),
+		recvChan:       make(chan *p2p.RecvMessageItem, 1000),
+		sendChan:       make(chan *p2p.SendMessageItem, 1000),
+		singleCache:    gcache.New(500).LRU().Build(),
+		batchCache:     gcache.New(500).LRU().Build(),
 	}
 	fr.ms = NewFormulatorNodeMesh(key, NetAddressMap, fr)
 	fr.nm = p2p.NewNodeMesh(fr.cs.cn.Provider().ChainID(), ndkey, SeedNodeMap, fr, peerStorePath)
@@ -238,72 +230,50 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 		}
 	*/
 
-	go func() {
-		for !fr.isClose {
-			hasMessage := false
-			for !fr.isClose {
-				for _, q := range fr.recvQueues {
-					v := q.Pop()
-					if v == nil {
-						continue
-					}
-					hasMessage = true
-					item := v.(*p2p.RecvMessageItem)
-					m, err := p2p.PacketToMessage(item.Packet)
-					if err != nil {
-						log.Println("PacketToMessage", err)
-						fr.nm.RemovePeer(item.PeerID)
-						break
-					}
-					if err := fr.handlePeerMessage(item.PeerID, m); err != nil {
-						log.Println("handlePeerMessage", err)
-						fr.nm.RemovePeer(item.PeerID)
-						break
-					}
+	for i := 0; i < 2; i++ {
+		go func() {
+			for item := range fr.recvChan {
+				if fr.isClose {
 					break
 				}
-				if !hasMessage {
-					break
+				m, err := p2p.PacketToMessage(item.Packet)
+				if err != nil {
+					log.Println("PacketToMessage", err)
+					fr.nm.RemovePeer(item.PeerID)
+					continue
+				}
+				if err := fr.handlePeerMessage(item.PeerID, m); err != nil {
+					log.Println("handlePeerMessage", err)
+					fr.nm.RemovePeer(item.PeerID)
+					continue
 				}
 			}
-			time.Sleep(10 * time.Millisecond)
-		}
-	}()
+		}()
+	}
 
-	go func() {
-		for !fr.isClose {
-			hasMessage := false
-			for !fr.isClose {
-				for _, q := range fr.sendQueues {
-					v := q.Pop()
-					if v == nil {
-						continue
-					}
-					hasMessage = true
-					item := v.(*p2p.SendMessageItem)
-					var EmptyHash common.PublicHash
-					if bytes.Equal(item.Target[:], EmptyHash[:]) {
-						if item.Limit > 0 {
-							fr.nm.ExceptCastLimit("", item.Packet, item.Limit)
-						} else {
-							fr.nm.BroadcastPacket(item.Packet)
-						}
-					} else {
-						if item.Limit > 0 {
-							fr.nm.ExceptCastLimit(string(item.Target[:]), item.Packet, item.Limit)
-						} else {
-							fr.nm.SendTo(item.Target, item.Packet)
-						}
-					}
+	for i := 0; i < 2; i++ {
+		go func() {
+			for item := range fr.sendChan {
+				if fr.isClose {
 					break
 				}
-				if !hasMessage {
-					break
+				var EmptyHash common.PublicHash
+				if bytes.Equal(item.Target[:], EmptyHash[:]) {
+					if item.Limit > 0 {
+						fr.nm.ExceptCastLimit("", item.Packet, item.Limit)
+					} else {
+						fr.nm.BroadcastPacket(item.Packet)
+					}
+				} else {
+					if item.Limit > 0 {
+						fr.nm.ExceptCastLimit(string(item.Target[:]), item.Packet, item.Limit)
+					} else {
+						fr.nm.SendTo(item.Target, item.Packet)
+					}
 				}
 			}
-			time.Sleep(10 * time.Millisecond)
-		}
-	}()
+		}()
+	}
 
 	go func() {
 		for !fr.isClose {

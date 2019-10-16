@@ -247,8 +247,8 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 						Formulator:           ob.round.MinRoundVoteAck.Formulator,
 						FormulatorPublicHash: ob.round.MinRoundVoteAck.FormulatorPublicHash,
 					}
-					//ob.sendMessage(0, ob.round.MinRoundVoteAck.Formulator, nm)
-					ob.fs.SendTo(ob.round.MinRoundVoteAck.Formulator, p2p.MessageToPacket(nm))
+					ob.sendMessage(0, ob.round.MinRoundVoteAck.Formulator, nm)
+					//ob.fs.SendTo(ob.round.MinRoundVoteAck.Formulator, p2p.MessageToPacket(nm))
 				}
 
 				br := ob.round.BlockRoundMap[ob.round.TargetHeight]
@@ -622,9 +622,11 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 					ObserverSignatures: sigs,
 				}
 				bs := p2p.MessageToPacket(nm)
-				ob.fs.SendTo(ob.round.MinRoundVoteAck.Formulator, bs)
+				ob.sendMessagePacket(0, ob.round.MinRoundVoteAck.Formulator, bs)
+				//ob.fs.SendTo(ob.round.MinRoundVoteAck.Formulator, bs)
 				if NextTop != nil {
-					ob.fs.SendTo(NextTop.Address, bs)
+					ob.sendMessagePacket(0, NextTop.Address, bs)
+					//ob.fs.SendTo(NextTop.Address, bs)
 				}
 			} else {
 				if NextTop != nil {

@@ -13,23 +13,23 @@ func (fr *FormulatorNode) sendMessage(Priority int, Target common.PublicHash, m 
 		panic("")
 	}
 
-	fr.sendQueues[Priority].Push(&p2p.SendMessageItem{
+	fr.sendChan <- &p2p.SendMessageItem{
 		Target: Target,
 		Packet: p2p.MessageToPacket(m),
-	})
+	}
 }
 
 func (fr *FormulatorNode) sendMessagePacket(Priority int, Target common.PublicHash, bs []byte) {
-	fr.sendQueues[Priority].Push(&p2p.SendMessageItem{
+	fr.sendChan <- &p2p.SendMessageItem{
 		Target: Target,
 		Packet: bs,
-	})
+	}
 }
 
 func (fr *FormulatorNode) broadcastMessagePacket(Priority int, bs []byte) {
-	fr.sendQueues[Priority].Push(&p2p.SendMessageItem{
+	fr.sendChan <- &p2p.SendMessageItem{
 		Packet: bs,
-	})
+	}
 }
 
 func (fr *FormulatorNode) limitCastMessage(Priority int, m interface{}) {
@@ -37,10 +37,10 @@ func (fr *FormulatorNode) limitCastMessage(Priority int, m interface{}) {
 		panic("")
 	}
 
-	fr.sendQueues[Priority].Push(&p2p.SendMessageItem{
+	fr.sendChan <- &p2p.SendMessageItem{
 		Packet: p2p.MessageToPacket(m),
 		Limit:  3,
-	})
+	}
 }
 
 func (fr *FormulatorNode) exceptLimitCastMessage(Priority int, Target common.PublicHash, m interface{}) {
@@ -48,11 +48,11 @@ func (fr *FormulatorNode) exceptLimitCastMessage(Priority int, Target common.Pub
 		panic("")
 	}
 
-	fr.sendQueues[Priority].Push(&p2p.SendMessageItem{
+	fr.sendChan <- &p2p.SendMessageItem{
 		Target: Target,
 		Packet: p2p.MessageToPacket(m),
 		Limit:  3,
-	})
+	}
 }
 
 func (fr *FormulatorNode) sendStatusTo(TargetPubHash common.PublicHash) error {

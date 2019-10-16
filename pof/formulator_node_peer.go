@@ -38,24 +38,9 @@ func (fr *FormulatorNode) OnDisconnected(p peer.Peer) {
 
 // OnRecv called when message received
 func (fr *FormulatorNode) OnRecv(p peer.Peer, bs []byte) error {
-	item := &p2p.RecvMessageItem{
+	fr.recvChan <- &p2p.RecvMessageItem{
 		PeerID: p.ID(),
 		Packet: bs,
-	}
-	t := p2p.PacketMessageType(bs)
-	switch t {
-	case p2p.RequestMessageType:
-		fr.recvQueues[0].Push(item)
-	case p2p.StatusMessageType:
-		fr.recvQueues[0].Push(item)
-	case p2p.BlockMessageType:
-		fr.recvQueues[0].Push(item)
-	case p2p.TransactionMessageType:
-		fr.recvQueues[1].Push(item)
-	case p2p.PeerListMessageType:
-		fr.recvQueues[2].Push(item)
-	case p2p.RequestPeerListMessageType:
-		fr.recvQueues[2].Push(item)
 	}
 	return nil
 }

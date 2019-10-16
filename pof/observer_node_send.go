@@ -11,17 +11,17 @@ import (
 )
 
 func (ob *ObserverNode) sendMessage(Priority int, Address common.Address, m interface{}) {
-	ob.sendQueues[Priority].Push(&p2p.SendMessageItem{
+	ob.sendChan <- &p2p.SendMessageItem{
 		Address: Address,
 		Packet:  p2p.MessageToPacket(m),
-	})
+	}
 }
 
 func (ob *ObserverNode) sendMessagePacket(Priority int, Address common.Address, bs []byte) {
-	ob.sendQueues[Priority].Push(&p2p.SendMessageItem{
+	ob.sendChan <- &p2p.SendMessageItem{
 		Address: Address,
 		Packet:  bs,
-	})
+	}
 }
 
 func (ob *ObserverNode) sendRoundVote() error {
