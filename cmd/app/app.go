@@ -153,13 +153,6 @@ func (app *FletaApp) InitGenesis(ctw *types.ContextWrapper) error {
 		addSingleAccount(sp, ctw, common.MustParsePublicHash("2v2cC7uxoWP4wtvexV2FMM8C7gDSMrpwDQV9cz7t1f2"), common.MustParseAddress("7bScSUkTk"), "fleta.payment", amount.NewCoinAmount(0, 0))
 		addSingleAccount(sp, ctw, common.MustParsePublicHash("3GJBaEiHyjFyoT9PgUW7bLe75urSXYjd4Pegs56mxSa"), common.MustParseAddress("9nvUvJfcf"), "fleta.vault", amount.NewCoinAmount(0, 0))
 
-		addHyperFormulator(sp, ctw, hyperPolicy, 0, common.MustParsePublicHash("tK17uzHBu9a7UgH1bp1RTjJ4pg7kq7fy8cRg9RkvtB"), common.MustParsePublicHash("3nERzijSzXjcWiMayxcnFKEfi8Hdbe7Sw23SSVnVP7d"), common.MustParseAddress("385ujsGNZt"), "HashTower")
-		addHyperFormulator(sp, ctw, hyperPolicy, 0, common.MustParsePublicHash("4be7BNQmL1tUrWN68uS2duR8HTsvgchoYh4TMySjM8e"), common.MustParsePublicHash("3PuvivcsCzqkHhhWNfeTF2AbJurRLsq7Mt1AiYSLyP5"), common.MustParseAddress("9nvUvJibL"), "Cosmostation")
-		addHyperFormulator(sp, ctw, hyperPolicy, 0, common.MustParsePublicHash("21VNE9XSyWLRf6VgZsyyQWGKK7oGMLQTMtrepzTRVJY"), common.MustParsePublicHash("iQb24rJqfEfehvRFV4ty6wjC6iGZrkXeoyKnfS2udA"), common.MustParseAddress("7bScSUoST"), "Bitsonic")
-		addHyperFormulator(sp, ctw, hyperPolicy, 0, common.MustParsePublicHash("bSRmgoHsNPm2cmB8znfkW1y7CDjB5V4fo3dwHufL29"), common.MustParsePublicHash("3uc6crGRLtWb7V9qhBZZXjXJxKrmhfsP2TKUF2MNbjk"), common.MustParseAddress("GPN6MnU3y"), "LikeLion")
-		addHyperFormulator(sp, ctw, hyperPolicy, 0, common.MustParsePublicHash("4Xn92AZgYjTaaiewoPuCXRuVAKhsmiptcZEWGpXwjEh"), common.MustParsePublicHash("23jtJLq9dkcxJ5iHDioUj4TbWZjQQFB4Bnw7JMGxA26"), common.MustParseAddress("3EgMMJk82X"), "FOROUR")
-		addHyperFormulator(sp, ctw, hyperPolicy, 0, common.MustParsePublicHash("kUkC7cqi8SxmLUxZHdEXjWs2PUF8VF7TWJ9k2tuRXW"), common.MustParsePublicHash("3x9hW9qzUCUh5DHgY6S3xawRbqabC8WF2myvVBqz4wn"), common.MustParseAddress("3AHPcM6Him"), "WBL")
-
 		setupSigmaFormulator(sp, ctw, sigmaPolicy, alphaPolicy)
 		setupAlphaFormulator(sp, ctw, alphaPolicy)
 		setupSingleAccunt(sp, ctw)

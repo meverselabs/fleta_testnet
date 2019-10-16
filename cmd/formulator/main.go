@@ -129,7 +129,9 @@ func main() {
 	SeedNodeMap[common.MustParsePublicHash("4YjmYcLVvBSmtjh4Z7frRZhWgdEAYTSABCoqqzhKEJa")] = "199.247.2.136:41000"
 	SeedNodeMap[common.MustParsePublicHash("3ZdKaqaCbGSQ5xmAphzVTeEF1eGzX6iU4LLGD2ox2g9")] = "45.77.59.252:41000"
 	SeedNodeMap[common.MustParsePublicHash("3PuvivcsCzqkHhhWNfeTF2AbJurRLsq7Mt1AiYSLyP5")] = "140.82.63.172:41000"
-	SeedNodeMap[common.MustParsePublicHash("CV3cNk8UZxJcsLYjSgMdKuMf7VbDnbHXyqvb2rSE4y")] = "45.76.247.209:41000"
+	SeedNodeMap[common.MustParsePublicHash("EMLGsnW7RvSWTtmArG7aJuASvR7iFwg7uy59FmAwT2")] = "140.82.52.163:41000"
+	SeedNodeMap[common.MustParsePublicHash("4ew8HQEwwSqeepMDCnwN9PiYg1uvoeZXyudqdQZBCb3")] = "149.28.240.38:41000"
+	SeedNodeMap[common.MustParsePublicHash("3HhrC3gPR951SjnxjnHpfhRSWH1iR3SbCSwtCHvTLuC")] = "45.32.173.38:41000"
 
 	cm := closer.NewManager()
 	sigc := make(chan os.Signal, 1)
@@ -217,21 +219,20 @@ func main() {
 	}
 
 	switch cfg.GenKeyHex {
-	case "b4f95ba0cf35632e708a820d9cfb61a16370baeb8fb3dedd3de5e88525e9765f":
-		Addrs = Addrs[:5000]
-		//Addrs = Addrs[:7500]
 	case "f9d8e80d688c8b79a0470eaf418d0b6d0adac0648af9481f6d58b69ecebeb82c":
-		Addrs = Addrs[5000:10000]
-		//Addrs = Addrs[7500:15000]
+		Addrs = Addrs[:5000]
 	case "a3bcc459e90b575d75a64aa7f8a0e45b610057d2132112f9d5876b358d95609b":
-		Addrs = Addrs[10000:15000]
-		//Addrs = Addrs[15000:22500]
+		Addrs = Addrs[5000:10000]
 	case "a1dde36e03c1f5cbac2bfb98144d555b5b52f7540e4c83c5d5ca9e47899e953a":
+		Addrs = Addrs[10000:15000]
+	case "27ae44b142780e0d354451cf420a745e26640c1fea4efc40501934abdefe1ba5":
 		Addrs = Addrs[15000:20000]
-		//Addrs = Addrs[22500:30000]
+	case "e2ec6a295d63d9bf312367773efe0b164d55554a61880741b072c87cd66298ae":
+		Addrs = Addrs[20000:25000]
+	case "16e0381a755ea31b5567db0557d173fca57396f54ba734ade9f7a8e420e446b3":
+		Addrs = Addrs[25000:30000]
 	default:
 		Addrs = []common.Address{}
-		//Addrs = Addrs[0:1]
 	}
 
 	fr := pof.NewFormulatorNode(&pof.FormulatorConfig{
