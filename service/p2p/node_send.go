@@ -7,38 +7,38 @@ import (
 )
 
 func (nd *Node) sendMessage(Priority int, Target common.PublicHash, m interface{}) {
-	nd.sendQueues[Priority].Push(&SendMessageItem{
+	nd.sendChan <- &SendMessageItem{
 		Target: Target,
 		Packet: MessageToPacket(m),
-	})
+	}
 }
 
 func (nd *Node) sendMessagePacket(Priority int, Target common.PublicHash, bs []byte) {
-	nd.sendQueues[Priority].Push(&SendMessageItem{
+	nd.sendChan <- &SendMessageItem{
 		Target: Target,
 		Packet: bs,
-	})
+	}
 }
 
 func (nd *Node) broadcastMessage(Priority int, m interface{}) {
-	nd.sendQueues[Priority].Push(&SendMessageItem{
+	nd.sendChan <- &SendMessageItem{
 		Packet: MessageToPacket(m),
-	})
+	}
 }
 
 func (nd *Node) limitCastMessage(Priority int, m interface{}) {
-	nd.sendQueues[Priority].Push(&SendMessageItem{
+	nd.sendChan <- &SendMessageItem{
 		Packet: MessageToPacket(m),
 		Limit:  3,
-	})
+	}
 }
 
 func (nd *Node) exceptLimitCastMessage(Priority int, Target common.PublicHash, m interface{}) {
-	nd.sendQueues[Priority].Push(&SendMessageItem{
+	nd.sendChan <- &SendMessageItem{
 		Target: Target,
 		Packet: MessageToPacket(m),
 		Limit:  3,
-	})
+	}
 }
 
 func (nd *Node) sendStatusTo(TargetPubHash common.PublicHash) error {

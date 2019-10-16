@@ -36,8 +36,8 @@ type Node struct {
 	txpool       *txpool.TransactionPool
 	txQ          *queue.ExpireQueue
 	txWaitQ      *queue.LinkedQueue
-	recvQueues   []*queue.Queue
-	sendQueues   []*queue.Queue
+	recvChan     chan *RecvMessageItem
+	sendChan     chan *SendMessageItem
 	singleCache  gcache.Cache
 	batchCache   gcache.Cache
 	isRunning    bool
@@ -56,18 +56,10 @@ func NewNode(key key.Key, SeedNodeMap map[common.PublicHash]string, cn *chain.Ch
 		txpool:       txpool.NewTransactionPool(),
 		txQ:          queue.NewExpireQueue(),
 		txWaitQ:      queue.NewLinkedQueue(),
-		recvQueues: []*queue.Queue{
-			queue.NewQueue(), //block
-			queue.NewQueue(), //tx
-			queue.NewQueue(), //peer
-		},
-		sendQueues: []*queue.Queue{
-			queue.NewQueue(), //block
-			queue.NewQueue(), //tx
-			queue.NewQueue(), //peer
-		},
-		singleCache: gcache.New(500).LRU().Build(),
-		batchCache:  gcache.New(500).LRU().Build(),
+		recvChan:     make(chan *RecvMessageItem, 1000),
+		sendChan:     make(chan *SendMessageItem, 1000),
+		singleCache:  gcache.New(500).LRU().Build(),
+		batchCache:   gcache.New(500).LRU().Build(),
 	}
 	nd.ms = NewNodeMesh(cn.Provider().ChainID(), key, SeedNodeMap, nd, peerStorePath)
 	nd.requestTimer = NewRequestTimer(nd)
@@ -169,104 +161,50 @@ func (nd *Node) Run(BindAddress string) {
 		}()
 	}
 
-	go func() {
-		for !nd.isClose {
-			hasMessage := false
-			for !nd.isClose {
-				for _, q := range nd.recvQueues {
-					v := q.Pop()
-					if v == nil {
-						continue
-					}
-					hasMessage = true
-					item := v.(*RecvMessageItem)
-					m, err := PacketToMessage(item.Packet)
-					if err != nil {
-						log.Println("PacketToMessage", err)
-						nd.ms.RemovePeer(item.PeerID)
-						break
-					}
-					if err := nd.handlePeerMessage(item.PeerID, m); err != nil {
-						log.Println("handlePeerMessage", err)
-						nd.ms.RemovePeer(item.PeerID)
-						break
-					}
+	for i := 0; i < 2; i++ {
+		go func() {
+			for item := range nd.recvChan {
+				if nd.isClose {
+					break
 				}
-				if !hasMessage {
+				m, err := PacketToMessage(item.Packet)
+				if err != nil {
+					log.Println("PacketToMessage", err)
+					nd.ms.RemovePeer(item.PeerID)
+					break
+				}
+				if err := nd.handlePeerMessage(item.PeerID, m); err != nil {
+					log.Println("handlePeerMessage", err)
+					nd.ms.RemovePeer(item.PeerID)
 					break
 				}
 			}
-			time.Sleep(100 * time.Millisecond)
-		}
-	}()
+		}()
+	}
 
-	go func() {
-		for !nd.isClose {
-			hasMessage := false
-			for !nd.isClose {
-				for _, q := range nd.sendQueues {
-					v := q.Pop()
-					if v == nil {
-						continue
-					}
-					hasMessage = true
-					item := v.(*SendMessageItem)
-					var EmptyHash common.PublicHash
-					if bytes.Equal(item.Target[:], EmptyHash[:]) {
-						if item.Limit > 0 {
-							nd.ms.ExceptCastLimit("", item.Packet, item.Limit)
-						} else {
-							nd.ms.BroadcastPacket(item.Packet)
-						}
-					} else {
-						if item.Limit > 0 {
-							nd.ms.ExceptCastLimit(string(item.Target[:]), item.Packet, item.Limit)
-						} else {
-							nd.ms.SendTo(item.Target, item.Packet)
-						}
-					}
-				}
-				if !hasMessage {
+	for i := 0; i < 2; i++ {
+		go func() {
+			for item := range nd.sendChan {
+				if nd.isClose {
 					break
 				}
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
-	}()
-
-	go func() {
-		for !nd.isClose {
-			hasMessage := false
-			for !nd.isClose {
-				for _, q := range nd.sendQueues {
-					v := q.Pop()
-					if v == nil {
-						continue
-					}
-					hasMessage = true
-					item := v.(*SendMessageItem)
-					var EmptyHash common.PublicHash
-					if bytes.Equal(item.Target[:], EmptyHash[:]) {
-						if item.Limit > 0 {
-							nd.ms.ExceptCastLimit("", item.Packet, item.Limit)
-						} else {
-							nd.ms.BroadcastPacket(item.Packet)
-						}
+				var EmptyHash common.PublicHash
+				if bytes.Equal(item.Target[:], EmptyHash[:]) {
+					if item.Limit > 0 {
+						nd.ms.ExceptCastLimit("", item.Packet, item.Limit)
 					} else {
-						if item.Limit > 0 {
-							nd.ms.ExceptCastLimit(string(item.Target[:]), item.Packet, item.Limit)
-						} else {
-							nd.ms.SendTo(item.Target, item.Packet)
-						}
+						nd.ms.BroadcastPacket(item.Packet)
+					}
+				} else {
+					if item.Limit > 0 {
+						nd.ms.ExceptCastLimit(string(item.Target[:]), item.Packet, item.Limit)
+					} else {
+						nd.ms.SendTo(item.Target, item.Packet)
 					}
 				}
-				if !hasMessage {
-					break
-				}
 			}
-			time.Sleep(10 * time.Millisecond)
-		}
-	}()
+		}()
+	}
 
 	go func() {
 		for !nd.isClose {
@@ -345,24 +283,9 @@ func (nd *Node) OnDisconnected(p peer.Peer) {
 
 // OnRecv called when message received
 func (nd *Node) OnRecv(p peer.Peer, bs []byte) error {
-	item := &RecvMessageItem{
+	nd.recvChan <- &RecvMessageItem{
 		PeerID: p.ID(),
 		Packet: bs,
-	}
-	t := PacketMessageType(bs)
-	switch t {
-	case RequestMessageType:
-		nd.recvQueues[0].Push(item)
-	case StatusMessageType:
-		nd.recvQueues[0].Push(item)
-	case BlockMessageType:
-		nd.recvQueues[0].Push(item)
-	case TransactionMessageType:
-		nd.recvQueues[1].Push(item)
-	case PeerListMessageType:
-		nd.recvQueues[2].Push(item)
-	case RequestPeerListMessageType:
-		nd.recvQueues[2].Push(item)
 	}
 	return nil
 }
