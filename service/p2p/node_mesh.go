@@ -46,13 +46,11 @@ func NewNodeMesh(ChainID uint8, key key.Key, SeedNodeMap map[common.PublicHash]s
 		clientPeerMap: map[string]peer.Peer{},
 		serverPeerMap: map[string]peer.Peer{},
 	}
-	/*
-		manager, err := nodepoolmanage.NewNodePoolManage(peerStorePath, ms)
-		if err != nil {
-			panic(err)
-		}
-		ms.nodePoolManager = manager
-	*/
+	manager, err := nodepoolmanage.NewNodePoolManage(peerStorePath, ms)
+	if err != nil {
+		panic(err)
+	}
+	ms.nodePoolManager = manager
 
 	for PubHash, v := range SeedNodeMap {
 		ms.nodeSet[PubHash] = v

@@ -113,15 +113,13 @@ func (fr *FormulatorNode) handleObserverMessage(p peer.Peer, m interface{}, Retr
 		if msg.PrevHash != cp.LastHash() {
 			return ErrInvalidRequest
 		}
-		/*
-			Top, err := fr.cs.rt.TopRank(int(msg.TimeoutCount))
-			if err != nil {
-				return err
-			}
-			if msg.Formulator != Top.Address {
-				return ErrInvalidRequest
-			}
-		*/
+		Top, err := fr.cs.rt.TopRank(int(msg.TimeoutCount))
+		if err != nil {
+			return err
+		}
+		if msg.Formulator != Top.Address {
+			return ErrInvalidRequest
+		}
 		fr.lastReqMessage = msg
 
 		go func(req *BlockReqMessage) error {

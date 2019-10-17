@@ -155,12 +155,6 @@ func (fr *FormulatorNode) tryRequestBlocks() {
 	defer fr.requestLock.Unlock()
 
 	BaseHeight := fr.cs.cn.Provider().Height() + 1
-	/*
-		if item, has := fr.lastGenItemMap[BaseHeight]; has && item.Recv && item.BlockGen != nil {
-			return
-		}
-	*/
-
 	for i := uint32(0); i < 10; i++ {
 		TargetHeight := BaseHeight + i
 		if !fr.requestTimer.Exist(TargetHeight) {

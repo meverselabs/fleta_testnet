@@ -3,6 +3,7 @@ package pof
 import (
 	"bytes"
 	"log"
+	"runtime"
 	"sync"
 	"time"
 
@@ -123,7 +124,7 @@ func (fr *FormulatorNode) temp() {
 	Txs := []types.Transaction{}
 	Sigs := []common.Signature{}
 	TxHashes := []hash.Hash256{}
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 4; i++ {
 		for _, Addr := range fr.Config.Addrs {
 			tx := &vault.Transfer{
 				Timestamp_: uint64(time.Now().UnixNano()),
@@ -140,17 +141,13 @@ func (fr *FormulatorNode) temp() {
 			Txs = append(Txs, tx)
 			Sigs = append(Sigs, sig)
 			TxHashes = append(TxHashes, TxHash)
-			if len(fr.Txs) >= 5000 {
-				break
-			}
-		}
-		if len(fr.Txs) >= 5000 {
-			break
 		}
 	}
-	fr.Txs = Txs
-	fr.Sigs = Sigs
-	fr.TxHashes = TxHashes
+	if len(Txs) > 6000 {
+		fr.Txs = Txs[:6000]
+		fr.Sigs = Sigs[:6000]
+		fr.TxHashes = TxHashes[:6000]
+	}
 }
 
 // Close terminates the formulator
@@ -194,49 +191,48 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 	go fr.nm.Run(BindAddress)
 	go fr.requestTimer.Run()
 
-	/*
-		WorkerCount := runtime.NumCPU() - 1
-		if WorkerCount < 1 {
-			WorkerCount = 1
-		}
-		for i := 0; i < WorkerCount; i++ {
-			go func() {
+	WorkerCount := runtime.NumCPU() - 1
+	if WorkerCount < 1 {
+		WorkerCount = 1
+	}
+	for i := 0; i < WorkerCount; i++ {
+		go func() {
+			for !fr.isClose {
+				Count := 0
 				for !fr.isClose {
-					Count := 0
-					for !fr.isClose {
-						v := fr.txWaitQ.Pop()
-						if v == nil {
-							break
-						}
-						item := v.(*p2p.TxMsgItem)
-						if err := fr.addTx(item.TxHash, item.Message.TxType, item.Message.Tx, item.Message.Sigs); err != nil {
-							if err != p2p.ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
-								rlog.Println("TransactionError", chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String(), err.Error())
-								if len(item.PeerID) > 0 {
-									fr.nm.RemovePeer(item.PeerID)
-								}
+					v := fr.txWaitQ.Pop()
+					if v == nil {
+						break
+					}
+					item := v.(*p2p.TxMsgItem)
+					if err := fr.addTx(item.TxHash, item.Message.TxType, item.Message.Tx, item.Message.Sigs); err != nil {
+						if err != p2p.ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
+							rlog.Println("TransactionError", chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String(), err.Error())
+							if len(item.PeerID) > 0 {
+								fr.nm.RemovePeer(item.PeerID)
 							}
 						}
-						rlog.Println("TransactionAppended", chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String())
-
-						if len(item.PeerID) > 0 {
-							var SenderPublicHash common.PublicHash
-							copy(SenderPublicHash[:], []byte(item.PeerID))
-							fr.exceptLimitCastMessage(1, SenderPublicHash, item.Message)
-						} else {
-							fr.limitCastMessage(1, item.Message)
-						}
-
-						Count++
-						if Count > 500 {
-							break
-						}
+						break
 					}
-					time.Sleep(100 * time.Millisecond)
+					rlog.Println("TransactionAppended", chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String())
+
+					if len(item.PeerID) > 0 {
+						var SenderPublicHash common.PublicHash
+						copy(SenderPublicHash[:], []byte(item.PeerID))
+						fr.exceptLimitCastMessage(1, SenderPublicHash, item.Message)
+					} else {
+						fr.limitCastMessage(1, item.Message)
+					}
+
+					Count++
+					if Count > 500 {
+						break
+					}
 				}
-			}()
-		}
-	*/
+				time.Sleep(100 * time.Millisecond)
+			}
+		}()
+	}
 
 	for i := 0; i < 2; i++ {
 		go func() {

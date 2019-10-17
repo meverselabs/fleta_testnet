@@ -140,6 +140,7 @@ func (nd *Node) Run(BindAddress string) {
 								nd.ms.RemovePeer(item.PeerID)
 							}
 						}
+						break
 					}
 					rlog.Println("TransactionAppended", chain.HashTransactionByType(nd.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String())
 
