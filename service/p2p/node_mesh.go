@@ -2,6 +2,7 @@ package p2p
 
 import (
 	crand "crypto/rand"
+	"log"
 	"net"
 	"sync"
 	"time"
@@ -30,6 +31,7 @@ type NodeMesh struct {
 	chainID         uint8
 	key             key.Key
 	handler         Handler
+	myPublicHash    common.PublicHash
 	nodeSet         map[common.PublicHash]string
 	clientPeerMap   map[string]peer.Peer
 	serverPeerMap   map[string]peer.Peer
@@ -42,15 +44,17 @@ func NewNodeMesh(ChainID uint8, key key.Key, SeedNodeMap map[common.PublicHash]s
 		chainID:       ChainID,
 		key:           key,
 		handler:       handler,
+		myPublicHash:  common.NewPublicHash(key.PublicKey()),
 		nodeSet:       map[common.PublicHash]string{},
 		clientPeerMap: map[string]peer.Peer{},
 		serverPeerMap: map[string]peer.Peer{},
 	}
-	manager, err := nodepoolmanage.NewNodePoolManage(peerStorePath, ms)
+	manager, err := nodepoolmanage.NewNodePoolManage(peerStorePath, ms, ms.myPublicHash)
 	if err != nil {
 		panic(err)
 	}
 	ms.nodePoolManager = manager
+	ms.nodePoolManager.Ban(string(ms.myPublicHash[:]))
 
 	for PubHash, v := range SeedNodeMap {
 		ms.nodeSet[PubHash] = v
@@ -61,9 +65,8 @@ func NewNodeMesh(ChainID uint8, key key.Key, SeedNodeMap map[common.PublicHash]s
 // Run starts the node mesh
 func (ms *NodeMesh) Run(BindAddress string) {
 	ms.BindAddress = BindAddress
-	myPublicHash := common.NewPublicHash(ms.key.PublicKey())
 	for PubHash, v := range ms.nodeSet {
-		if PubHash != myPublicHash {
+		if PubHash != ms.myPublicHash {
 			go func(pubhash common.PublicHash, NetAddr string) {
 				time.Sleep(1 * time.Second)
 				for {
@@ -248,13 +251,18 @@ func (ms *NodeMesh) AddPeerList(ips []string, hashs []string) {
 }
 
 func (ms *NodeMesh) client(Address string, TargetPubHash common.PublicHash) error {
+	log.Println("ConnectingTo", Address, TargetPubHash.String())
+
+	if TargetPubHash == ms.myPublicHash {
+		ms.nodePoolManager.Ban(string(TargetPubHash[:]))
+		return ErrSelfConnection
+	}
+
 	conn, err := net.DialTimeout("tcp", Address, 10*time.Second)
 	if err != nil {
 		return err
 	}
-	defer func(addr string) {
-		conn.Close()
-	}(Address)
+	defer conn.Close()
 
 	start := time.Now()
 	if err := ms.recvHandshake(conn); err != nil {
@@ -266,7 +274,16 @@ func (ms *NodeMesh) client(Address string, TargetPubHash common.PublicHash) erro
 		rlog.Println("[sendHandshake]", err)
 		return err
 	}
+	if pubhash == ms.myPublicHash {
+		ms.nodePoolManager.Ban(string(TargetPubHash[:]))
+		ms.nodePoolManager.Ban(string(pubhash[:]))
+		return ErrSelfConnection
+	}
 	if pubhash != TargetPubHash {
+		ms.nodePoolManager.RemovePeer(string(TargetPubHash[:]))
+		ms.nodePoolManager.RemovePeer(string(pubhash[:]))
+		ms.nodePoolManager.Ban(string(TargetPubHash[:]))
+		ms.nodePoolManager.Ban(string(pubhash[:]))
 		return common.ErrInvalidPublicHash
 	}
 	//duration := time.Since(start)
@@ -315,6 +332,11 @@ func (ms *NodeMesh) server(BindAddress string) error {
 				rlog.Println("[sendHandshake]", err)
 				return
 			}
+			if pubhash == ms.myPublicHash {
+				ms.nodePoolManager.RemovePeer(string(pubhash[:]))
+				ms.nodePoolManager.Ban(string(pubhash[:]))
+				return
+			}
 			if err := ms.recvHandshake(conn); err != nil {
 				rlog.Println("[recvHandshakeAck]", err)
 				return
@@ -329,6 +351,8 @@ func (ms *NodeMesh) server(BindAddress string) error {
 			ID := string(pubhash[:])
 			//ms.nodePoolManager.NewNode(ipAddress, ID, duration)
 			p := NewTCPPeer(conn, ID, pubhash.String(), start.UnixNano())
+
+			log.Println("ConnectedFrom", pubhash.String())
 
 			ms.Lock()
 			old, has := ms.serverPeerMap[ID]
