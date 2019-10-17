@@ -3,6 +3,7 @@ package p2p
 import (
 	"log"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 
 // TCPPeer manages send and recv of the connection
 type TCPPeer struct {
+	sync.Mutex
 	conn          net.Conn
 	id            string
 	name          string
@@ -37,13 +39,17 @@ func NewTCPPeer(conn net.Conn, ID string, Name string, connectedTime int64) *TCP
 
 		pingCountLimit := uint64(3)
 		for !p.isClose {
+			p.Lock()
 			if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+				p.Unlock()
 				return
 			}
 			_, err := p.conn.Write(binutil.LittleEndian.Uint32ToBytes(0))
 			if err != nil {
+				p.Unlock()
 				return
 			}
+			p.Unlock()
 			if atomic.AddUint64(&p.pingCount, 1) > pingCountLimit {
 				return
 			}
@@ -97,6 +103,9 @@ func (p *TCPPeer) ReadPacket() ([]byte, error) {
 
 // SendPacket sends packet to the WebsocketPeer
 func (p *TCPPeer) SendPacket(bs []byte) {
+	p.Lock()
+	defer p.Unlock()
+
 	if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		log.Println(p.name, "SendPacket.SetWriteDeadline", err)
 		p.Close()

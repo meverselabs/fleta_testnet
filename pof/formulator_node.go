@@ -123,22 +123,30 @@ func (fr *FormulatorNode) temp() {
 	Txs := []types.Transaction{}
 	Sigs := []common.Signature{}
 	TxHashes := []hash.Hash256{}
-	for _, Addr := range fr.Config.Addrs {
-		tx := &vault.Transfer{
-			Timestamp_: uint64(time.Now().UnixNano()),
-			From_:      Addr,
-			To:         Addr,
-			Amount:     amount.NewCoinAmount(1, 0),
-		}
-		sig, err := key.Sign(chain.HashTransaction(fr.cs.cn.Provider().ChainID(), tx))
-		if err != nil {
-			panic(err)
-		}
-		TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
+	for i := 0; i < 3; i++ {
+		for _, Addr := range fr.Config.Addrs {
+			tx := &vault.Transfer{
+				Timestamp_: uint64(time.Now().UnixNano()),
+				From_:      Addr,
+				To:         Addr,
+				Amount:     amount.NewCoinAmount(1, 0),
+			}
+			sig, err := key.Sign(chain.HashTransaction(fr.cs.cn.Provider().ChainID(), tx))
+			if err != nil {
+				panic(err)
+			}
+			TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
 
-		Txs = append(Txs, tx)
-		Sigs = append(Sigs, sig)
-		TxHashes = append(TxHashes, TxHash)
+			Txs = append(Txs, tx)
+			Sigs = append(Sigs, sig)
+			TxHashes = append(TxHashes, TxHash)
+			if len(fr.Txs) >= 5000 {
+				break
+			}
+		}
+		if len(fr.Txs) >= 5000 {
+			break
+		}
 	}
 	fr.Txs = Txs
 	fr.Sigs = Sigs

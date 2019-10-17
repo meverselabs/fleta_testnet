@@ -442,8 +442,7 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 				fr.txpool.Unlock() // Prevent delaying from TxPool.Push
 		*/
 
-		for i := range fr.Config.Addrs {
-			tx := fr.Txs[i]
+		for i, tx := range fr.Txs {
 			TxHash := fr.TxHashes[i]
 			sig := fr.Sigs[i]
 			if err := bc.UnsafeAddTx(fr.Config.Formulator, t, TxHash, tx, []common.Signature{sig}, []common.PublicHash{signer}); err != nil {

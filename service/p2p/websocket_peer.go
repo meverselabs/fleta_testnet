@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"log"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 
 // WebsocketPeer manages send and recv of the connection
 type WebsocketPeer struct {
+	sync.Mutex
 	conn          *websocket.Conn
 	id            string
 	name          string
@@ -40,9 +42,12 @@ func NewWebsocketPeer(conn *websocket.Conn, ID string, Name string, connectedTim
 
 		pingCountLimit := uint64(3)
 		for !p.isClose {
+			p.Lock()
 			if err := p.conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
+				p.Unlock()
 				return
 			}
+			p.Unlock()
 			if atomic.AddUint64(&p.pingCount, 1) > pingCountLimit {
 				return
 			}
@@ -84,6 +89,9 @@ func (p *WebsocketPeer) ReadPacket() ([]byte, error) {
 
 // SendPacket sends packet to the WebsocketPeer
 func (p *WebsocketPeer) SendPacket(bs []byte) {
+	p.Lock()
+	defer p.Unlock()
+
 	if err := p.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		log.Println(p.name, "SendPacket", err)
 		p.Close()
