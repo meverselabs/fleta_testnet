@@ -250,23 +250,6 @@ func main() {
 	*/
 	switch cfg.GenKeyHex {
 	case "f9d8e80d688c8b79a0470eaf418d0b6d0adac0648af9481f6d58b69ecebeb82c":
-		Addrs = Addrs[:6000]
-	case "a3bcc459e90b575d75a64aa7f8a0e45b610057d2132112f9d5876b358d95609b":
-		Addrs = Addrs[6000:12000]
-	case "a1dde36e03c1f5cbac2bfb98144d555b5b52f7540e4c83c5d5ca9e47899e953a":
-		Addrs = Addrs[12000:18000]
-	case "27ae44b142780e0d354451cf420a745e26640c1fea4efc40501934abdefe1ba5":
-		Addrs = Addrs[18000:24000]
-	case "e2ec6a295d63d9bf312367773efe0b164d55554a61880741b072c87cd66298ae":
-		Addrs = Addrs[24000:30000]
-	case "16e0381a755ea31b5567db0557d173fca57396f54ba734ade9f7a8e420e446b3":
-		Addrs = Addrs[30000:36000]
-	default:
-		Addrs = []common.Address{}
-	}
-
-	switch cfg.GenKeyHex {
-	case "f9d8e80d688c8b79a0470eaf418d0b6d0adac0648af9481f6d58b69ecebeb82c":
 		Addrs = Addrs[:2000]
 	case "7b5c05c6a87f650900dafd05fcbdb184c8d5b5f81cb31fff49f9212b44848340":
 		Addrs = Addrs[2000:4000]
