@@ -8,6 +8,7 @@ import (
 
 	"github.com/fletaio/fleta_testnet/common/binutil"
 	"github.com/fletaio/fleta_testnet/common/queue"
+	"github.com/fletaio/fleta_testnet/core/types"
 )
 
 // TCPAsyncPeer manages send and recv of the connection
@@ -33,6 +34,7 @@ func NewTCPAsyncPeer(conn net.Conn, ID string, Name string, connectedTime int64)
 		name:          Name,
 		connectedTime: connectedTime,
 		writeQ:        queue.NewQueue(),
+		pingType:      types.DefineHashedType("p2p.PingMessage"),
 	}
 
 	go func() {
@@ -104,19 +106,24 @@ func (p *TCPAsyncPeer) IsClosed() bool {
 // ReadPacket returns a packet data
 func (p *TCPAsyncPeer) ReadPacket() ([]byte, error) {
 	for {
-		if Len, _, err := ReadUint32(p.conn); err != nil {
+		if t, _, err := ReadUint16(p.conn); err != nil {
 			return nil, err
 		} else {
 			atomic.StoreUint64(&p.pingCount, 0)
-			if Len == 0 { // ping
+			if t == p.pingType {
 				continue
 			} else {
-				bs := make([]byte, 4+Len)
-				binutil.LittleEndian.PutUint32(bs, Len)
-				if _, err := FillBytes(p.conn, bs[4:]); err != nil {
+				if Len, _, err := ReadUint32(p.conn); err != nil {
 					return nil, err
+				} else {
+					bs := make([]byte, 6+Len)
+					binutil.LittleEndian.PutUint16(bs, t)
+					binutil.LittleEndian.PutUint32(bs[2:], Len)
+					if _, err := FillBytes(p.conn, bs[6:]); err != nil {
+						return nil, err
+					}
+					return bs, nil
 				}
-				return bs, nil
 			}
 		}
 	}
