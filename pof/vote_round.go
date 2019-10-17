@@ -25,8 +25,6 @@ type VoteRound struct {
 	RoundVoteWaitMap           map[common.PublicHash]*RoundVoteMessage
 	RoundVoteAckMessageWaitMap map[common.PublicHash]*RoundVoteAckMessage
 	VoteFailCount              int
-	NextRoundVoteMessageMap    map[common.PublicHash]*NextRoundVoteMessage
-	NextRoundVoteAckMessageMap map[common.PublicHash]*NextRoundVoteAckMessage
 	MinNextRoundVoteAck        *RoundVoteAck
 }
 
@@ -37,11 +35,9 @@ func NewVoteRound(TargetHeight uint32, MaxBlocksPerFormulator uint32) *VoteRound
 		TargetHeight:               TargetHeight,
 		RoundVoteMessageMap:        map[common.PublicHash]*RoundVoteMessage{},
 		RoundVoteAckMessageMap:     map[common.PublicHash]*RoundVoteAckMessage{},
-		BlockRoundMap:              map[uint32]*BlockRound{},
 		RoundVoteWaitMap:           map[common.PublicHash]*RoundVoteMessage{},
 		RoundVoteAckMessageWaitMap: map[common.PublicHash]*RoundVoteAckMessage{},
-		NextRoundVoteMessageMap:    map[common.PublicHash]*NextRoundVoteMessage{},
-		NextRoundVoteAckMessageMap: map[common.PublicHash]*NextRoundVoteAckMessage{},
+		BlockRoundMap:              map[uint32]*BlockRound{},
 	}
 	for i := TargetHeight; i < TargetHeight+MaxBlocksPerFormulator; i++ {
 		vr.BlockRoundMap[i] = NewBlockRound()
@@ -51,14 +47,12 @@ func NewVoteRound(TargetHeight uint32, MaxBlocksPerFormulator uint32) *VoteRound
 
 // BlockRound is data for the block round
 type BlockRound struct {
-	BlockVoteMap              map[common.PublicHash]*BlockVote
-	BlockGenMessage           *BlockGenMessage
-	BlockGenMessagePacket     []byte
-	Context                   *types.Context
-	BlockVoteMessageWaitMap   map[common.PublicHash]*BlockVoteMessage
-	BlockGenMessageWait       *BlockGenMessage
-	BlockGenMessageWaitPacket []byte
-	LastBlockGenRequestTime   uint64
+	BlockVoteMap            map[common.PublicHash]*BlockVote
+	BlockGenMessage         *BlockGenMessage
+	Context                 *types.Context
+	BlockVoteMessageWaitMap map[common.PublicHash]*BlockVoteMessage
+	BlockGenMessageWait     *BlockGenMessage
+	LastBlockGenRequestTime uint64
 }
 
 // NewBlockRound returns a VoteRound
