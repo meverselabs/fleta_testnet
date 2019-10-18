@@ -7,9 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fletaio/fleta_testnet/common/amount"
-	"github.com/fletaio/fleta_testnet/process/vault"
-
 	"github.com/bluele/gcache"
 
 	"github.com/fletaio/fleta_testnet/common"
@@ -63,6 +60,7 @@ type FormulatorNode struct {
 	txpool         *txpool.TransactionPool
 	txQ            *queue.ExpireQueue
 	txWaitQ        *queue.LinkedQueue
+	txSendQ        *queue.Queue
 	recvChan       chan *p2p.RecvMessageItem
 	sendChan       chan *p2p.SendMessageItem
 	singleCache    gcache.Cache
@@ -70,11 +68,6 @@ type FormulatorNode struct {
 	isRunning      bool
 	closeLock      sync.RWMutex
 	isClose        bool
-
-	//TEMP
-	Txs      []types.Transaction
-	Sigs     []common.Signature
-	TxHashes []hash.Hash256
 }
 
 // NewFormulatorNode returns a FormulatorNode
@@ -97,6 +90,7 @@ func NewFormulatorNode(Config *FormulatorConfig, key key.Key, ndkey key.Key, Net
 		txpool:         txpool.NewTransactionPool(),
 		txQ:            queue.NewExpireQueue(),
 		txWaitQ:        queue.NewLinkedQueue(),
+		txSendQ:        queue.NewQueue(),
 		recvChan:       make(chan *p2p.RecvMessageItem, 1000),
 		sendChan:       make(chan *p2p.SendMessageItem, 1000),
 		singleCache:    gcache.New(500).LRU().Build(),
@@ -109,45 +103,7 @@ func NewFormulatorNode(Config *FormulatorConfig, key key.Key, ndkey key.Key, Net
 	fr.txQ.AddGroup(3600 * time.Second)
 	fr.txQ.AddHandler(fr)
 	rlog.SetRLogAddress("fr:" + Config.Formulator.String())
-
-	fr.temp() // TEMP
 	return fr
-}
-
-func (fr *FormulatorNode) temp() {
-	fc := encoding.Factory("transaction")
-	t, err := fc.TypeOf(&vault.Transfer{})
-	if err != nil {
-		panic(err)
-	}
-	key, _ := key.NewMemoryKeyFromString("fd1167aad31c104c9fceb5b8a4ffd3e20a272af82176352d3b6ac236d02bafd4")
-	Txs := []types.Transaction{}
-	Sigs := []common.Signature{}
-	TxHashes := []hash.Hash256{}
-	for i := 0; i < 4; i++ {
-		for _, Addr := range fr.Config.Addrs {
-			tx := &vault.Transfer{
-				Timestamp_: uint64(time.Now().UnixNano()),
-				From_:      Addr,
-				To:         Addr,
-				Amount:     amount.NewCoinAmount(1, 0),
-			}
-			sig, err := key.Sign(chain.HashTransaction(fr.cs.cn.Provider().ChainID(), tx))
-			if err != nil {
-				panic(err)
-			}
-			TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
-
-			Txs = append(Txs, tx)
-			Sigs = append(Sigs, sig)
-			TxHashes = append(TxHashes, TxHash)
-		}
-	}
-	if len(Txs) > 6000 {
-		fr.Txs = Txs[:6000]
-		fr.Sigs = Sigs[:6000]
-		fr.TxHashes = TxHashes[:6000]
-	}
 }
 
 // Close terminates the formulator
@@ -205,24 +161,18 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 						break
 					}
 					item := v.(*p2p.TxMsgItem)
-					if err := fr.addTx(item.TxHash, item.Message.TxType, item.Message.Tx, item.Message.Sigs); err != nil {
+					if err := fr.addTx(item.TxHash, item.Type, item.Tx, item.Sigs); err != nil {
 						if err != p2p.ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
-							rlog.Println("TransactionError", chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String(), err.Error())
+							//rlog.Println("TransactionError", item.TxHash.String(), err.Error())
 							if len(item.PeerID) > 0 {
 								fr.nm.RemovePeer(item.PeerID)
 							}
 						}
 						break
 					}
-					rlog.Println("TransactionAppended", chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), item.Message.TxType, item.Message.Tx).String())
+					//rlog.Println("TransactionAppended", item.TxHash.String())
 
-					if len(item.PeerID) > 0 {
-						var SenderPublicHash common.PublicHash
-						copy(SenderPublicHash[:], []byte(item.PeerID))
-						fr.exceptCastMessage(1, SenderPublicHash, item.Message)
-					} else {
-						fr.broadcastMessage(1, item.Message)
-					}
+					fr.txSendQ.Push(item)
 
 					Count++
 					if Count > 500 {
@@ -233,6 +183,31 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 			}
 		}()
 	}
+
+	go func() {
+		for !fr.isClose {
+			msg := &p2p.TransactionMessage{
+				Types:      []uint16{},
+				Txs:        []types.Transaction{},
+				Signatures: [][]common.Signature{},
+			}
+			for {
+				v := fr.txSendQ.Pop()
+				if v == nil {
+					break
+				}
+				m := v.(*p2p.TxMsgItem)
+				msg.Types = append(msg.Types, m.Type)
+				msg.Txs = append(msg.Txs, m.Tx)
+				msg.Signatures = append(msg.Signatures, m.Sigs)
+				if len(msg.Types) >= 5000 {
+					break
+				}
+			}
+			fr.broadcastMessage(1, msg)
+			time.Sleep(100 * time.Millisecond)
+		}
+	}()
 
 	for i := 0; i < 2; i++ {
 		go func() {
@@ -352,11 +327,9 @@ func (fr *FormulatorNode) AddTx(tx types.Transaction, sigs []common.Signature) e
 	TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
 	fr.txWaitQ.Push(TxHash, &p2p.TxMsgItem{
 		TxHash: TxHash,
-		Message: &p2p.TransactionMessage{
-			TxType: t,
-			Tx:     tx,
-			Sigs:   sigs,
-		},
+		Type:   t,
+		Tx:     tx,
+		Sigs:   sigs,
 	})
 	return nil
 }
@@ -399,10 +372,10 @@ func (fr *FormulatorNode) addTx(TxHash hash.Hash256, t uint16, tx types.Transact
 	if err := fr.txpool.Push(fr.cs.cn.Provider().ChainID(), t, TxHash, tx, sigs, signers); err != nil {
 		return err
 	}
-	fr.txQ.Push(string(TxHash[:]), &p2p.TransactionMessage{
-		TxType: t,
-		Tx:     tx,
-		Sigs:   sigs,
+	fr.txQ.Push(string(TxHash[:]), &p2p.TxMsgItem{
+		Type: t,
+		Tx:   tx,
+		Sigs: sigs,
 	})
 	return nil
 }
@@ -414,12 +387,17 @@ func (fr *FormulatorNode) OnTimerExpired(height uint32, value string) {
 
 // OnItemExpired is called when the item is expired
 func (fr *FormulatorNode) OnItemExpired(Interval time.Duration, Key string, Item interface{}, IsLast bool) {
-	msg := Item.(*p2p.TransactionMessage)
-	fr.broadcastMessage(1, msg)
+	item := Item.(*p2p.TxMsgItem)
+	cp := fr.cs.cn.Provider()
+	if atx, is := item.Tx.(chain.AccountTransaction); is {
+		seq := cp.Seq(atx.From())
+		if atx.Seq() <= seq {
+			return
+		}
+	}
+	fr.txSendQ.Push(item)
 	if IsLast {
-		var TxHash hash.Hash256
-		copy(TxHash[:], []byte(Key))
-		fr.txpool.Remove(TxHash, msg.Tx)
+		fr.txpool.Remove(item.TxHash, item.Tx)
 	}
 }
 

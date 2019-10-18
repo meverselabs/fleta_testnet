@@ -130,12 +130,22 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 		if fr.txWaitQ.Size() > 200000 {
 			return txpool.ErrTransactionPoolOverflowed
 		}
-		TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), msg.TxType, msg.Tx)
-		fr.txWaitQ.Push(TxHash, &p2p.TxMsgItem{
-			TxHash:  TxHash,
-			Message: msg,
-			PeerID:  ID,
-		})
+		if len(msg.Types) > 5000 {
+			return p2p.ErrTooManyTrasactionInMessage
+		}
+		ChainID := fr.cs.cn.Provider().ChainID()
+		for i, t := range msg.Types {
+			tx := msg.Txs[i]
+			sigs := msg.Signatures[i]
+			TxHash := chain.HashTransactionByType(ChainID, t, tx)
+			fr.txWaitQ.Push(TxHash, &p2p.TxMsgItem{
+				TxHash: TxHash,
+				Type:   t,
+				Tx:     tx,
+				Sigs:   sigs,
+				PeerID: ID,
+			})
+		}
 		return nil
 	case *p2p.PeerListMessage:
 		fr.nm.AddPeerList(msg.Ips, msg.Hashs)

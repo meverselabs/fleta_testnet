@@ -25,7 +25,6 @@ type VoteRound struct {
 	RoundVoteWaitMap           map[common.PublicHash]*RoundVoteMessage
 	RoundVoteAckMessageWaitMap map[common.PublicHash]*RoundVoteAckMessage
 	VoteFailCount              int
-	MinNextRoundVoteAck        *RoundVoteAck
 }
 
 // NewVoteRound returns a VoteRound

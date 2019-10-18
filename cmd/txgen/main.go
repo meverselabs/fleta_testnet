@@ -207,24 +207,23 @@ func main() {
 	cm.Add("node", nd)
 
 	waitMap := map[common.Address]*chan struct{}{}
-	if false {
+	if true {
 		go func() {
 			switch cfg.NodeKeyHex {
+			case "f07f3de26238cb57776556c67368665a53a969efeddf582028ae0c2344261feb":
+				Addrs = Addrs[:6000]
+			case "2e56f231189d41397a844232250276992691b9102aa53efd3a315ec2abf76094":
+				Addrs = Addrs[6000:12000]
 			case "74a4bb065b9553e18c5f6aab54bcb07db58f2950b09d3be024e20318512d97bb":
-				Addrs = Addrs[:7500]
-				//Addrs = Addrs[:1]
+				Addrs = Addrs[12000:18000]
 			case "f7b6a6291165b7d4cea6d16b911b6f2ba024aac6f160b230b9a04de876f3b045":
-				Addrs = Addrs[7500:15000]
-				//Addrs = Addrs[50:51]
+				Addrs = Addrs[18000:24000]
 			case "4bc61ab268197c465d471d67618a3bf385651a93ed5011b8db08f5dfdca43c1d":
-				Addrs = Addrs[15000:22500]
-				//Addrs = Addrs[100:101]
+				Addrs = Addrs[24000:30000]
 			case "bfe9f217f31f52a8e3e975c415d297ff201a4c4abfbcb921eb9013b0c21397f4":
-				Addrs = Addrs[22500:30000]
-				//Addrs = Addrs[150:151]
+				Addrs = Addrs[30000:36000]
 			default:
 				Addrs = []common.Address{}
-				//Addrs = Addrs[0:1]
 			}
 
 			for _, Addr := range Addrs {
