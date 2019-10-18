@@ -147,7 +147,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 	go fr.nm.Run(BindAddress)
 	go fr.requestTimer.Run()
 
-	WorkerCount := runtime.NumCPU() - 1
+	WorkerCount := runtime.NumCPU() / 2
 	if WorkerCount < 1 {
 		WorkerCount = 1
 	}

@@ -126,7 +126,7 @@ func (nd *Node) Run(BindAddress string) {
 	go nd.ms.Run(BindAddress)
 	go nd.requestTimer.Run()
 
-	WorkerCount := runtime.NumCPU() - 1
+	WorkerCount := runtime.NumCPU() / 2
 	if WorkerCount < 1 {
 		WorkerCount = 1
 	}
