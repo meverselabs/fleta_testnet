@@ -23,12 +23,10 @@ func (tx *Transfer) Timestamp() uint64 {
 	return tx.Timestamp_
 }
 
-/*
 // Seq returns the sequence of the transaction
 func (tx *Transfer) Seq() uint64 {
 	return tx.Seq_
 }
-*/
 
 // From returns the from address of the transaction
 func (tx *Transfer) From() common.Address {
