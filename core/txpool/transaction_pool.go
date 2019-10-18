@@ -80,8 +80,11 @@ func (tp *TransactionPool) Push(t uint16, TxHash hash.Hash256, tx types.Transact
 	}
 	atx, is := tx.(chain.AccountTransaction)
 	if !is {
-		tp.utxoQ.Push(TxHash, item)
-		tp.turnQ.Push(true)
+		if tp.utxoQ.Push(TxHash, item) {
+			tp.turnQ.Push(true)
+		} else {
+			return ErrExistTransaction
+		}
 	} else {
 		addr := atx.From()
 		q, has := tp.bucketMap[addr]
