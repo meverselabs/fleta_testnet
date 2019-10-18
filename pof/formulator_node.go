@@ -331,12 +331,14 @@ func (fr *FormulatorNode) AddTx(tx types.Transaction, sigs []common.Signature) e
 		return err
 	}
 	TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
-	fr.txWaitQ.Push(TxHash, &p2p.TxMsgItem{
-		TxHash: TxHash,
-		Type:   t,
-		Tx:     tx,
-		Sigs:   sigs,
-	})
+	if !fr.txpool.IsExist(TxHash) {
+		fr.txWaitQ.Push(TxHash, &p2p.TxMsgItem{
+			TxHash: TxHash,
+			Type:   t,
+			Tx:     tx,
+			Sigs:   sigs,
+		})
+	}
 	return nil
 }
 

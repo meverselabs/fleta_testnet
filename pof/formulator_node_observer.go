@@ -242,12 +242,14 @@ func (fr *FormulatorNode) handleObserverMessage(p peer.Peer, m interface{}, Retr
 			tx := msg.Txs[i]
 			sigs := msg.Signatures[i]
 			TxHash := chain.HashTransactionByType(ChainID, t, tx)
-			fr.txWaitQ.Push(TxHash, &p2p.TxMsgItem{
-				TxHash: TxHash,
-				Type:   t,
-				Tx:     tx,
-				Sigs:   sigs,
-			})
+			if !fr.txpool.IsExist(TxHash) {
+				fr.txWaitQ.Push(TxHash, &p2p.TxMsgItem{
+					TxHash: TxHash,
+					Type:   t,
+					Tx:     tx,
+					Sigs:   sigs,
+				})
+			}
 		}
 		return nil
 	default:

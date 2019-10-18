@@ -140,13 +140,15 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 			tx := msg.Txs[i]
 			sigs := msg.Signatures[i]
 			TxHash := chain.HashTransactionByType(ChainID, t, tx)
-			fr.txWaitQ.Push(TxHash, &p2p.TxMsgItem{
-				TxHash: TxHash,
-				Type:   t,
-				Tx:     tx,
-				Sigs:   sigs,
-				PeerID: ID,
-			})
+			if !fr.txpool.IsExist(TxHash) {
+				fr.txWaitQ.Push(TxHash, &p2p.TxMsgItem{
+					TxHash: TxHash,
+					Type:   t,
+					Tx:     tx,
+					Sigs:   sigs,
+					PeerID: ID,
+				})
+			}
 		}
 		return nil
 	case *p2p.PeerListMessage:

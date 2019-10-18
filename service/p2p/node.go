@@ -428,13 +428,15 @@ func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 			tx := msg.Txs[i]
 			sigs := msg.Signatures[i]
 			TxHash := chain.HashTransactionByType(ChainID, t, tx)
-			nd.txWaitQ.Push(TxHash, &TxMsgItem{
-				TxHash: TxHash,
-				Type:   t,
-				Tx:     tx,
-				Sigs:   sigs,
-				PeerID: ID,
-			})
+			if !nd.txpool.IsExist(TxHash) {
+				nd.txWaitQ.Push(TxHash, &TxMsgItem{
+					TxHash: TxHash,
+					Type:   t,
+					Tx:     tx,
+					Sigs:   sigs,
+					PeerID: ID,
+				})
+			}
 		}
 		return nil
 	case *PeerListMessage:
@@ -481,12 +483,14 @@ func (nd *Node) AddTx(tx types.Transaction, sigs []common.Signature) error {
 		return err
 	}
 	TxHash := chain.HashTransactionByType(nd.cn.Provider().ChainID(), t, tx)
-	nd.txWaitQ.Push(TxHash, &TxMsgItem{
-		TxHash: TxHash,
-		Type:   t,
-		Tx:     tx,
-		Sigs:   sigs,
-	})
+	if !nd.txpool.IsExist(TxHash) {
+		nd.txWaitQ.Push(TxHash, &TxMsgItem{
+			TxHash: TxHash,
+			Type:   t,
+			Tx:     tx,
+			Sigs:   sigs,
+		})
+	}
 	return nil
 }
 
