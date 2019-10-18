@@ -6,7 +6,6 @@ import (
 	"github.com/fletaio/fleta_testnet/common"
 	"github.com/fletaio/fleta_testnet/common/rlog"
 	"github.com/fletaio/fleta_testnet/core/chain"
-	"github.com/fletaio/fleta_testnet/core/txpool"
 	"github.com/fletaio/fleta_testnet/service/p2p"
 	"github.com/fletaio/fleta_testnet/service/p2p/peer"
 )
@@ -127,9 +126,12 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 			fr.statusLock.Unlock()
 		}
 	case *p2p.TransactionMessage:
-		if fr.txWaitQ.Size() > 200000 {
-			return txpool.ErrTransactionPoolOverflowed
-		}
+		//log.Println("Recv.TransactionMessage", fr.txWaitQ.Size(), fr.txpool.Size())
+		/*
+			if fr.txWaitQ.Size() > 200000 {
+				return txpool.ErrTransactionPoolOverflowed
+			}
+		*/
 		if len(msg.Types) > 5000 {
 			return p2p.ErrTooManyTrasactionInMessage
 		}

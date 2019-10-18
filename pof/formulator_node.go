@@ -155,29 +155,30 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 		go func() {
 			for !fr.isClose {
 				Count := 0
+				ctw := fr.cs.cn.Provider().NewLoaderWrapper(1)
 				for !fr.isClose {
 					v := fr.txWaitQ.Pop()
 					if v == nil {
 						break
 					}
-					item := v.(*p2p.TxMsgItem)
-					if err := fr.addTx(item.TxHash, item.Type, item.Tx, item.Sigs); err != nil {
-						if err != p2p.ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
-							//rlog.Println("TransactionError", item.TxHash.String(), err.Error())
-							if len(item.PeerID) > 0 {
-								fr.nm.RemovePeer(item.PeerID)
-							}
-						}
-						break
-					}
-					//rlog.Println("TransactionAppended", item.TxHash.String())
-
-					fr.txSendQ.Push(item)
 
 					Count++
 					if Count > 500 {
 						break
 					}
+					item := v.(*p2p.TxMsgItem)
+					if err := fr.addTx(ctw, item.TxHash, item.Type, item.Tx, item.Sigs); err != nil {
+						if err != p2p.ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
+							rlog.Println("TransactionError", item.TxHash.String(), err.Error())
+							if len(item.PeerID) > 0 {
+								fr.nm.RemovePeer(item.PeerID)
+							}
+						}
+						continue
+					}
+					//rlog.Println("TransactionAppended", item.TxHash.String(), Count)
+
+					fr.txSendQ.Push(item)
 				}
 				time.Sleep(100 * time.Millisecond)
 			}
@@ -186,25 +187,30 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 
 	go func() {
 		for !fr.isClose {
-			msg := &p2p.TransactionMessage{
-				Types:      []uint16{},
-				Txs:        []types.Transaction{},
-				Signatures: [][]common.Signature{},
-			}
-			for {
-				v := fr.txSendQ.Pop()
-				if v == nil {
-					break
+			if fr.nm.HasPeer() {
+				msg := &p2p.TransactionMessage{
+					Types:      []uint16{},
+					Txs:        []types.Transaction{},
+					Signatures: [][]common.Signature{},
 				}
-				m := v.(*p2p.TxMsgItem)
-				msg.Types = append(msg.Types, m.Type)
-				msg.Txs = append(msg.Txs, m.Tx)
-				msg.Signatures = append(msg.Signatures, m.Sigs)
-				if len(msg.Types) >= 5000 {
-					break
+				for {
+					v := fr.txSendQ.Pop()
+					if v == nil {
+						break
+					}
+					m := v.(*p2p.TxMsgItem)
+					msg.Types = append(msg.Types, m.Type)
+					msg.Txs = append(msg.Txs, m.Tx)
+					msg.Signatures = append(msg.Signatures, m.Sigs)
+					if len(msg.Types) >= 5000 {
+						break
+					}
+				}
+				if len(msg.Types) > 0 {
+					//log.Println("Send.TransactionMessage", len(msg.Types))
+					fr.broadcastMessage(1, msg)
 				}
 			}
-			fr.broadcastMessage(1, msg)
 			time.Sleep(100 * time.Millisecond)
 		}
 	}()
@@ -334,11 +340,12 @@ func (fr *FormulatorNode) AddTx(tx types.Transaction, sigs []common.Signature) e
 	return nil
 }
 
-func (fr *FormulatorNode) addTx(TxHash hash.Hash256, t uint16, tx types.Transaction, sigs []common.Signature) error {
-	if fr.txpool.Size() > 65535 {
-		return txpool.ErrTransactionPoolOverflowed
-	}
-
+func (fr *FormulatorNode) addTx(ctw types.LoaderWrapper, TxHash hash.Hash256, t uint16, tx types.Transaction, sigs []common.Signature) error {
+	/*
+		if fr.txpool.Size() > 65535 {
+			return txpool.ErrTransactionPoolOverflowed
+		}
+	*/
 	cp := fr.cs.cn.Provider()
 	if fr.txpool.IsExist(TxHash) {
 		return txpool.ErrExistTransaction
@@ -364,12 +371,10 @@ func (fr *FormulatorNode) addTx(TxHash hash.Hash256, t uint16, tx types.Transact
 	if err != nil {
 		return err
 	}
-	ctx := fr.cs.cn.NewContext()
-	ctw := types.NewContextWrapper(pid, ctx)
 	if err := tx.Validate(p, ctw, signers); err != nil {
 		return err
 	}
-	if err := fr.txpool.Push(fr.cs.cn.Provider().ChainID(), t, TxHash, tx, sigs, signers); err != nil {
+	if err := fr.txpool.Push(t, TxHash, tx, sigs, signers); err != nil {
 		return err
 	}
 	fr.txQ.Push(string(TxHash[:]), &p2p.TxMsgItem{
