@@ -211,7 +211,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					msg.Types = append(msg.Types, m.Type)
 					msg.Txs = append(msg.Txs, m.Tx)
 					msg.Signatures = append(msg.Signatures, m.Sigs)
-					if len(msg.Types) >= 4000 {
+					if len(msg.Types) >= 1500 {
 						break
 					}
 				}
@@ -220,7 +220,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					fr.broadcastMessage(1, msg)
 				}
 			}
-			time.Sleep(250 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 		}
 	}()
 
