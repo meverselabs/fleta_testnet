@@ -157,6 +157,9 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 	}()
 
 	WorkerCount := runtime.NumCPU()/2 + 1
+	if WorkerCount >= runtime.NumCPU() {
+		WorkerCount = runtime.NumCPU() - 1
+	}
 	if WorkerCount < 1 {
 		WorkerCount = 1
 	}
