@@ -395,6 +395,7 @@ func (fr *FormulatorNode) addTx(ctw types.LoaderWrapper, TxHash hash.Hash256, t 
 	if err != nil {
 		return err
 	}
+	ctw = types.NewLoaderWrapper(pid, ctw)
 	if err := tx.Validate(p, ctw, signers); err != nil {
 		return err
 	}
