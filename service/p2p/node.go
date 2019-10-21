@@ -260,7 +260,7 @@ func (nd *Node) Run(BindAddress string) {
 					sm[TxHash] = item.Signers
 				}
 			}
-			if err := nd.cn.ConnectBlockWithSigMap(b, sm); err != nil {
+			if err := nd.cn.ConnectBlock(b, sm); err != nil {
 				rlog.Println(err)
 				panic(err)
 				break

@@ -329,7 +329,7 @@ func (fr *FormulatorNode) updateByGenItem() {
 						sm[TxHash] = item.Signers
 					}
 				}
-				if err := fr.cs.ct.ExecuteBlockOnContextWithSigMap(item.BlockGen.Block, ctx, sm); err != nil {
+				if err := fr.cs.ct.ExecuteBlockOnContext(item.BlockGen.Block, ctx, sm); err != nil {
 					log.Println("updateByGenItem.prevItem.ConnectBlockWithContext", err)
 					return
 				}
@@ -372,7 +372,7 @@ func (fr *FormulatorNode) updateByGenItem() {
 					sm[TxHash] = item.Signers
 				}
 			}
-			if err := fr.cs.cn.ConnectBlockWithSigMap(b, sm); err != nil {
+			if err := fr.cs.cn.ConnectBlock(b, sm); err != nil {
 				log.Println("updateByGenItem.ConnectBlock", err)
 				delete(fr.lastGenItemMap, b.Header.Height)
 				go fr.tryRequestBlocks()

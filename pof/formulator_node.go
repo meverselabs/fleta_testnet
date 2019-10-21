@@ -305,7 +305,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 						sm[TxHash] = item.Signers
 					}
 				}
-				if err := fr.cs.cn.ConnectBlockWithSigMap(b, sm); err != nil {
+				if err := fr.cs.cn.ConnectBlock(b, sm); err != nil {
 					break
 				}
 			}
