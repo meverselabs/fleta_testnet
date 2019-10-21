@@ -181,7 +181,7 @@ func (nd *Node) Run(BindAddress string) {
 					msg.Types = append(msg.Types, m.Type)
 					msg.Txs = append(msg.Txs, m.Tx)
 					msg.Signatures = append(msg.Signatures, m.Sigs)
-					if len(msg.Types) >= 1000 {
+					if len(msg.Types) >= 800 {
 						break
 					}
 				}
@@ -430,7 +430,7 @@ func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 				return txpool.ErrTransactionPoolOverflowed
 			}
 		*/
-		if len(msg.Types) > 1000 {
+		if len(msg.Types) > 800 {
 			return ErrTooManyTrasactionInMessage
 		}
 		ChainID := nd.cn.Provider().ChainID()
