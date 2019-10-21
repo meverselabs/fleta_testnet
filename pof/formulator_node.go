@@ -74,7 +74,7 @@ type FormulatorNode struct {
 // NewFormulatorNode returns a FormulatorNode
 func NewFormulatorNode(Config *FormulatorConfig, key key.Key, ndkey key.Key, NetAddressMap map[common.PublicHash]string, SeedNodeMap map[common.PublicHash]string, cs *Consensus, peerStorePath string) *FormulatorNode {
 	if Config.MaxTransactionsPerBlock == 0 {
-		Config.MaxTransactionsPerBlock = 10000
+		Config.MaxTransactionsPerBlock = 5000
 	}
 	fr := &FormulatorNode{
 		Config:         Config,
@@ -211,7 +211,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					msg.Types = append(msg.Types, m.Type)
 					msg.Txs = append(msg.Txs, m.Tx)
 					msg.Signatures = append(msg.Signatures, m.Sigs)
-					if len(msg.Types) >= 1500 {
+					if len(msg.Types) >= 1000 {
 						break
 					}
 				}
