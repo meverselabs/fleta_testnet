@@ -5,6 +5,9 @@ import (
 	"log"
 	"time"
 
+	"github.com/fletaio/fleta_testnet/common/debug"
+	"github.com/fletaio/fleta_testnet/common/hash"
+
 	"github.com/fletaio/fleta_testnet/common"
 	"github.com/fletaio/fleta_testnet/common/rlog"
 	"github.com/fletaio/fleta_testnet/core/chain"
@@ -316,7 +319,17 @@ func (fr *FormulatorNode) updateByGenItem() {
 				if ctx == nil {
 					ctx = fr.cs.cn.NewContext()
 				}
-				if err := fr.cs.ct.ExecuteBlockOnContext(item.BlockGen.Block, ctx); err != nil {
+				ChainID := fr.cs.cn.Provider().ChainID()
+				sm := map[hash.Hash256][]common.PublicHash{}
+				for i, tx := range item.BlockGen.Block.Transactions {
+					t := item.BlockGen.Block.TransactionTypes[i]
+					TxHash := chain.HashTransactionByType(ChainID, t, tx)
+					item := fr.txpool.Get(TxHash)
+					if item != nil {
+						sm[TxHash] = item.Signers
+					}
+				}
+				if err := fr.cs.ct.ExecuteBlockOnContextWithSigMap(item.BlockGen.Block, ctx, sm); err != nil {
 					log.Println("updateByGenItem.prevItem.ConnectBlockWithContext", err)
 					return
 				}
@@ -349,7 +362,17 @@ func (fr *FormulatorNode) updateByGenItem() {
 				return
 			}
 		} else {
-			if err := fr.cs.cn.ConnectBlock(b); err != nil {
+			ChainID := fr.cs.cn.Provider().ChainID()
+			sm := map[hash.Hash256][]common.PublicHash{}
+			for i, tx := range item.BlockGen.Block.Transactions {
+				t := item.BlockGen.Block.TransactionTypes[i]
+				TxHash := chain.HashTransactionByType(ChainID, t, tx)
+				item := fr.txpool.Get(TxHash)
+				if item != nil {
+					sm[TxHash] = item.Signers
+				}
+			}
+			if err := fr.cs.cn.ConnectBlockWithSigMap(b, sm); err != nil {
 				log.Println("updateByGenItem.ConnectBlock", err)
 				delete(fr.lastGenItemMap, b.Header.Height)
 				go fr.tryRequestBlocks()
@@ -402,6 +425,7 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 			Timestamp = ctx.LastTimestamp() + 1
 		}
 
+		dp := debug.Start("BlockGenBegin")
 		var buffer bytes.Buffer
 		enc := encoding.NewEncoder(&buffer)
 		if err := enc.EncodeUint32(TimeoutCount); err != nil {
@@ -457,6 +481,8 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 		} else {
 			sm.GeneratorSignature = sig
 		}
+		dp.Stop()
+
 		p.SendPacket(p2p.MessageToPacket(sm))
 
 		rlog.Println("Formulator", fr.Config.Formulator.String(), "Send.BlockGenMessage", sm.Block.Header.Height, len(sm.Block.Transactions))

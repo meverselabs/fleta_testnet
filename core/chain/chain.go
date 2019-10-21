@@ -5,6 +5,8 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/fletaio/fleta_testnet/common/debug"
+
 	"github.com/fletaio/fleta_testnet/common"
 	"github.com/fletaio/fleta_testnet/common/hash"
 	"github.com/fletaio/fleta_testnet/core/types"
@@ -258,6 +260,31 @@ func (cn *Chain) ConnectBlock(b *types.Block) error {
 	return cn.connectBlockWithContext(b, ctx)
 }
 
+// ConnectBlockWithSigMap try to connect block to the chain
+func (cn *Chain) ConnectBlockWithSigMap(b *types.Block, sm map[hash.Hash256][]common.PublicHash) error {
+	cn.closeLock.RLock()
+	defer cn.closeLock.RUnlock()
+	if cn.isClose {
+		return ErrChainClosed
+	}
+
+	cn.Lock()
+	defer cn.Unlock()
+
+	if err := cn.validateHeader(&b.Header); err != nil {
+		return err
+	}
+	if err := cn.consensus.ValidateSignature(&b.Header, b.Signatures); err != nil {
+		return err
+	}
+
+	ctx := types.NewContext(cn.store)
+	if err := cn.executeBlockOnContextWithSigMap(b, ctx, sm); err != nil {
+		return err
+	}
+	return cn.connectBlockWithContext(b, ctx)
+}
+
 func (cn *Chain) connectBlockWithContext(b *types.Block, ctx *types.Context) error {
 	IDMap := map[int]uint8{}
 	for id, idx := range cn.processIndexMap {
@@ -273,6 +300,7 @@ func (cn *Chain) connectBlockWithContext(b *types.Block, ctx *types.Context) err
 		return ErrDirtyContext
 	}
 
+	defer debug.Start("Execute.connectBlockWithContext").Stop()
 	// OnSaveData
 	for i, p := range cn.processes {
 		if err := p.OnSaveData(b, types.NewContextWrapper(IDMap[i], ctx)); err != nil {
@@ -303,15 +331,123 @@ func (cn *Chain) connectBlockWithContext(b *types.Block, ctx *types.Context) err
 }
 
 func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context) error {
+	p := debug.Start("Execute.validateTransactionSignatures")
 	TxSigners, err := cn.validateTransactionSignatures(b)
 	if err != nil {
+		p.Stop()
 		return err
 	}
+	p.Stop()
+
 	IDMap := map[int]uint8{}
 	for id, idx := range cn.processIndexMap {
 		IDMap[idx] = id
 	}
 
+	defer debug.Start("Execute.CreateContext").Stop()
+	// BeforeExecuteTransactions
+	for i, p := range cn.processes {
+		if err := p.BeforeExecuteTransactions(types.NewContextWrapper(IDMap[i], ctx)); err != nil {
+			return err
+		} else if ctx.StackSize() > 1 {
+			return ErrDirtyContext
+		}
+	}
+	if err := cn.app.BeforeExecuteTransactions(types.NewContextWrapper(255, ctx)); err != nil {
+		return err
+	} else if ctx.StackSize() > 1 {
+		return ErrDirtyContext
+	}
+
+	// Execute Transctions
+	for i, tx := range b.Transactions {
+		signers := TxSigners[i]
+		t := b.TransactionTypes[i]
+		pid := uint8(t >> 8)
+		p, err := cn.Process(pid)
+		if err != nil {
+			return err
+		}
+		ctw := types.NewContextWrapper(pid, ctx)
+
+		sn := ctw.Snapshot()
+		if err := tx.Validate(p, ctw, signers); err != nil {
+			ctw.Revert(sn)
+			return err
+		}
+		if at, is := tx.(AccountTransaction); is {
+			if at.Seq() != ctw.Seq(at.From())+1 {
+				ctw.Revert(sn)
+				return err
+			}
+			ctw.AddSeq(at.From())
+			Result := uint8(0)
+			if err := tx.Execute(p, ctw, uint16(i)); err != nil {
+				Result = 0
+			} else {
+				Result = 1
+			}
+			if Result != b.TransactionResults[i] {
+				return ErrInvalidResult
+			}
+		} else {
+			if err := tx.Execute(p, ctw, uint16(i)); err != nil {
+				ctw.Revert(sn)
+				return err
+			}
+			if 1 != b.TransactionResults[i] {
+				return ErrInvalidResult
+			}
+		}
+		if Has, err := ctw.HasAccount(b.Header.Generator); err != nil {
+			ctw.Revert(sn)
+			if err == types.ErrDeletedAccount {
+				return ErrCannotDeleteGeneratorAccount
+			} else {
+				return err
+			}
+		} else if !Has {
+			ctw.Revert(sn)
+			return ErrCannotDeleteGeneratorAccount
+		}
+		ctw.Commit(sn)
+	}
+
+	if ctx.StackSize() > 1 {
+		return ErrDirtyContext
+	}
+
+	// AfterExecuteTransactions
+	for i, p := range cn.processes {
+		if err := p.AfterExecuteTransactions(b, types.NewContextWrapper(IDMap[i], ctx)); err != nil {
+			return err
+		} else if ctx.StackSize() > 1 {
+			return ErrDirtyContext
+		}
+	}
+	if err := cn.app.AfterExecuteTransactions(b, types.NewContextWrapper(255, ctx)); err != nil {
+		return err
+	} else if ctx.StackSize() > 1 {
+		return ErrDirtyContext
+	}
+	return nil
+}
+
+func (cn *Chain) executeBlockOnContextWithSigMap(b *types.Block, ctx *types.Context, sm map[hash.Hash256][]common.PublicHash) error {
+	p := debug.Start("Execute.validateTransactionSignatures")
+	TxSigners, err := cn.validateTransactionSignaturesWithSigMap(b, sm)
+	if err != nil {
+		p.Stop()
+		return err
+	}
+	p.Stop()
+
+	IDMap := map[int]uint8{}
+	for id, idx := range cn.processIndexMap {
+		IDMap[idx] = id
+	}
+
+	defer debug.Start("Execute.CreateContext").Stop()
 	// BeforeExecuteTransactions
 	for i, p := range cn.processes {
 		if err := p.BeforeExecuteTransactions(types.NewContextWrapper(IDMap[i], ctx)); err != nil {
@@ -478,6 +614,64 @@ func (cn *Chain) validateTransactionSignatures(b *types.Block) ([][]common.Publi
 						return
 					}
 					signers = append(signers, common.NewPublicHash(pubkey))
+				}
+				TxSigners[sidx+q] = signers
+			}
+		}(i*txUnit, b.Transactions[i*txUnit:lastCnt])
+	}
+	wg.Wait()
+	if len(errs) > 0 {
+		err := <-errs
+		return nil, err
+	}
+	if h, err := BuildLevelRoot(TxHashes); err != nil {
+		return nil, err
+	} else if b.Header.LevelRootHash != h {
+		return nil, ErrInvalidLevelRootHash
+	}
+	return TxSigners, nil
+}
+
+func (cn *Chain) validateTransactionSignaturesWithSigMap(b *types.Block, sm map[hash.Hash256][]common.PublicHash) ([][]common.PublicHash, error) {
+	var wg sync.WaitGroup
+	cpuCnt := runtime.NumCPU()
+	if len(b.Transactions) < 1000 {
+		cpuCnt = 1
+	}
+	txUnit := len(b.Transactions) / cpuCnt
+	TxHashes := make([]hash.Hash256, len(b.Transactions)+1)
+	TxSigners := make([][]common.PublicHash, len(b.Transactions))
+	TxHashes[0] = b.Header.PrevHash
+	if len(b.Transactions)%cpuCnt != 0 {
+		txUnit++
+	}
+	errs := make(chan error, cpuCnt)
+	defer close(errs)
+	for i := 0; i < cpuCnt; i++ {
+		lastCnt := (i + 1) * txUnit
+		if lastCnt > len(b.Transactions) {
+			lastCnt = len(b.Transactions)
+		}
+		wg.Add(1)
+		go func(sidx int, txs []types.Transaction) {
+			defer wg.Done()
+			for q, tx := range txs {
+				t := b.TransactionTypes[sidx+q]
+				sigs := b.TransactionSignatures[sidx+q]
+
+				TxHash := HashTransactionByType(cn.store.chainID, t, tx)
+				TxHashes[sidx+q+1] = TxHash
+				signers, has := sm[TxHash]
+				if !has {
+					signers = make([]common.PublicHash, 0, len(sigs))
+					for _, sig := range sigs {
+						pubkey, err := common.RecoverPubkey(TxHash, sig)
+						if err != nil {
+							errs <- err
+							return
+						}
+						signers = append(signers, common.NewPublicHash(pubkey))
+					}
 				}
 				TxSigners[sidx+q] = signers
 			}

@@ -10,6 +10,7 @@ import (
 	"github.com/bluele/gcache"
 
 	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/common/debug"
 	"github.com/fletaio/fleta_testnet/common/hash"
 	"github.com/fletaio/fleta_testnet/common/key"
 	"github.com/fletaio/fleta_testnet/common/queue"
@@ -146,6 +147,14 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 	go fr.ms.Run()
 	go fr.nm.Run(BindAddress)
 	go fr.requestTimer.Run()
+
+	go func() {
+		for !fr.isClose {
+			time.Sleep(30 * time.Second)
+			debug.Result()
+			log.Println("------------------------------")
+		}
+	}()
 
 	WorkerCount := runtime.NumCPU() / 2
 	if WorkerCount < 1 {
@@ -286,7 +295,17 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 				}
 			}
 			if !isConnected {
-				if err := fr.cs.cn.ConnectBlock(b); err != nil {
+				ChainID := fr.cs.cn.Provider().ChainID()
+				sm := map[hash.Hash256][]common.PublicHash{}
+				for i, tx := range b.Transactions {
+					t := b.TransactionTypes[i]
+					TxHash := chain.HashTransactionByType(ChainID, t, tx)
+					item := fr.txpool.Get(TxHash)
+					if item != nil {
+						sm[TxHash] = item.Signers
+					}
+				}
+				if err := fr.cs.cn.ConnectBlockWithSigMap(b, sm); err != nil {
 					break
 				}
 			}

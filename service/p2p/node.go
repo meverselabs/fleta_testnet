@@ -250,7 +250,17 @@ func (nd *Node) Run(BindAddress string) {
 		item := nd.blockQ.PopUntil(TargetHeight)
 		for item != nil {
 			b := item.(*types.Block)
-			if err := nd.cn.ConnectBlock(b); err != nil {
+			ChainID := nd.cn.Provider().ChainID()
+			sm := map[hash.Hash256][]common.PublicHash{}
+			for i, tx := range b.Transactions {
+				t := b.TransactionTypes[i]
+				TxHash := chain.HashTransactionByType(ChainID, t, tx)
+				item := nd.txpool.Get(TxHash)
+				if item != nil {
+					sm[TxHash] = item.Signers
+				}
+			}
+			if err := nd.cn.ConnectBlockWithSigMap(b, sm); err != nil {
 				rlog.Println(err)
 				panic(err)
 				break

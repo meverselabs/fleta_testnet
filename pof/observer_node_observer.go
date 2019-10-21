@@ -220,6 +220,10 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 			}
 
 			if MinRoundVoteAck != nil {
+				if ob.prevRoundEndTime > 0 {
+					debug.Average("GeneratorElection", (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
+				}
+
 				ob.round.RoundState = BlockWaitState
 				ob.round.MinRoundVoteAck = MinRoundVoteAck
 				ob.round.VoteFailCount = 0
@@ -398,7 +402,7 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 		}
 
 		ctx := ob.cs.ct.NewContext()
-		if err := ob.cs.ct.ExecuteBlockOnContext(msg.Block, ctx); err != nil {
+		if err := ob.cs.ct.ExecuteBlockOnContextWithSigMap(msg.Block, ctx, nil); err != nil {
 			rlog.Println(msg.Block.Header.Generator.String(), "if err := ob.cs.ct.ExecuteBlockOnContext(msg.Block, ctx); err != nil {", err)
 			return err
 		}
@@ -679,6 +683,10 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 					ob.sendBlockGenRequest(brNext)
 				}
 			} else {
+				if ob.prevRoundEndTime > 0 {
+					debug.Average("RoundEnd", (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
+				}
+
 				ob.resetVoteRound(false)
 			}
 		}
