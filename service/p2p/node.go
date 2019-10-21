@@ -126,7 +126,7 @@ func (nd *Node) Run(BindAddress string) {
 	go nd.ms.Run(BindAddress)
 	go nd.requestTimer.Run()
 
-	WorkerCount := runtime.NumCPU() / 2
+	WorkerCount := runtime.NumCPU()/2 + 1
 	if WorkerCount < 1 {
 		WorkerCount = 1
 	}
@@ -181,7 +181,7 @@ func (nd *Node) Run(BindAddress string) {
 					msg.Types = append(msg.Types, m.Type)
 					msg.Txs = append(msg.Txs, m.Tx)
 					msg.Signatures = append(msg.Signatures, m.Sigs)
-					if len(msg.Types) >= 5000 {
+					if len(msg.Types) >= 4000 {
 						break
 					}
 				}
@@ -190,7 +190,7 @@ func (nd *Node) Run(BindAddress string) {
 					nd.broadcastMessage(1, msg)
 				}
 			}
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(250 * time.Millisecond)
 		}
 	}()
 
@@ -430,7 +430,7 @@ func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 				return txpool.ErrTransactionPoolOverflowed
 			}
 		*/
-		if len(msg.Types) > 5000 {
+		if len(msg.Types) > 4000 {
 			return ErrTooManyTrasactionInMessage
 		}
 		ChainID := nd.cn.Provider().ChainID()
