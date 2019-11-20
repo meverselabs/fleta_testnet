@@ -8,5 +8,6 @@ func init() {
 	for i := 0; i < 40000; i++ {
 		Addrs = append(Addrs, common.NewAddress(0, uint16(i+21000), 0))
 		Addrs = append(Addrs, common.NewAddress(0, uint16(i+21000), 1))
+		Addrs = append(Addrs, common.NewAddress(0, uint16(i+21000), 2))
 	}
 }

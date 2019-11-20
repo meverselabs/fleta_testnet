@@ -37,15 +37,17 @@ import (
 
 // Config is a configuration for the cmd
 type Config struct {
-	SeedNodeMap    map[string]string
-	ObserverKeyMap map[string]string
-	GenKeyHex      string
-	NodeKeyHex     string
-	Formulator     string
-	Port           int
-	APIPort        int
-	StoreRoot      string
-	InsertMode     bool
+	SeedNodeMap      map[string]string
+	ObserverKeyMap   map[string]string
+	GenKeyHex        string
+	NodeKeyHex       string
+	Formulator       string
+	Port             int
+	APIPort          int
+	StoreRoot        string
+	InsertMode       bool
+	InsertBlockCount uint32
+	InsertTxCount    int
 }
 
 func main() {
@@ -217,38 +219,42 @@ func main() {
 	if cfg.InsertMode {
 		switch cfg.GenKeyHex {
 		case "f9d8e80d688c8b79a0470eaf418d0b6d0adac0648af9481f6d58b69ecebeb82c":
-			Addrs = Addrs[:5500]
+			Addrs = Addrs[:10000]
 		case "7b5c05c6a87f650900dafd05fcbdb184c8d5b5f81cb31fff49f9212b44848340":
-			Addrs = Addrs[5500:11000]
+			Addrs = Addrs[10000:20000]
 		case "e85029d11cdfc8595331bec963977a410fdeca1c36dbd89e2ec7c2985a15ac78":
-			Addrs = Addrs[11000:16500]
+			Addrs = Addrs[20000:30000]
 		case "e2ec6a295d63d9bf312367773efe0b164d55554a61880741b072c87cd66298ae":
-			Addrs = Addrs[16500:22000]
+			Addrs = Addrs[30000:40000]
 		case "bb3f0d6b24dce5d5b4d539a814ba23ff429c1dfacde9a83e72cb4049a38ca113":
-			Addrs = Addrs[22000:27500]
+			Addrs = Addrs[40000:50000]
 		case "f322fa429a627772b76249c96d9e4525eb7c7ab66fc8ff16e7f141c1ddd61b6b":
-			Addrs = Addrs[27500:33000]
+			Addrs = Addrs[50000:60000]
 		case "a3bcc459e90b575d75a64aa7f8a0e45b610057d2132112f9d5876b358d95609b":
-			Addrs = Addrs[33000:38500]
+			Addrs = Addrs[60000:70000]
 		case "0f72009df8bbbf78aed3adbadb31d89410e7a4d4d0b104421b72b5d2e5343577":
-			Addrs = Addrs[38500:44000]
+			Addrs = Addrs[70000:80000]
 		case "a0c7e7ab4bb90e55c4e8d6fde2f7e9c18d9e1a9a8ba8cdf8e48caa2e6003f252":
-			Addrs = Addrs[44000:49500]
+			Addrs = Addrs[80000:90000]
 		case "16e0381a755ea31b5567db0557d173fca57396f54ba734ade9f7a8e420e446b3":
-			Addrs = Addrs[49500:55000]
+			Addrs = Addrs[90000:100000]
 		case "e5db5c29bdfb784f7235f86bfc9ac28e5e6e0507aaacc4b0e1d7db73ee20a1f5":
-			Addrs = Addrs[55000:60500]
+			Addrs = Addrs[10000:110000]
 		case "ea060ebefabb620500080461d438748e967965c210991b8e1a7b7435f96585e1":
-			Addrs = Addrs[60500:66000]
+			Addrs = Addrs[110000:120000]
 		default:
 			Addrs = []common.Address{}
 		}
+		if cfg.InsertTxCount > len(Addrs) {
+			cfg.InsertTxCount = len(Addrs)
+		}
+		Addrs = Addrs[:cfg.InsertTxCount]
 	} else {
 		Addrs = []common.Address{}
 	}
 
 	PoolItems := []*txpool.PoolItem{}
-	if true {
+	if len(Addrs) > 0 {
 		key, _ := key.NewMemoryKeyFromString("fd1167aad31c104c9fceb5b8a4ffd3e20a272af82176352d3b6ac236d02bafd4")
 		signer := common.NewPublicHash(key.PublicKey())
 		fc := encoding.Factory("transaction")
@@ -283,6 +289,7 @@ func main() {
 		Formulator:              common.MustParseAddress(cfg.Formulator),
 		MaxTransactionsPerBlock: 7000,
 		PoolItems:               PoolItems,
+		InsertBlockCount:        cfg.InsertBlockCount,
 	}, frkey, ndkey, NetAddressMap, SeedNodeMap, cs, cfg.StoreRoot+"/peer")
 	if err := fr.Init(); err != nil {
 		panic(err)

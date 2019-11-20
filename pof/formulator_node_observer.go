@@ -131,7 +131,7 @@ func (fr *FormulatorNode) handleObserverMessage(p peer.Peer, m interface{}, Retr
 			fr.Lock()
 			defer fr.Unlock()
 
-			if len(fr.Config.PoolItems) == 0 {
+			if len(fr.Config.PoolItems) == 0 && req.TargetHeight <= fr.Config.InsertBlockCount {
 				return fr.genBlock(p, req)
 			} else {
 				return fr.genInsertedBlock(p, req)
