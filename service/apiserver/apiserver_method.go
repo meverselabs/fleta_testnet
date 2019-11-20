@@ -88,9 +88,10 @@ func (s *APIServer) Run(BindAddress string) error {
 	})
 	for i := 0; i < 50; i++ {
 		go func() {
-			r := <-reqCh
-			res := s.handleJRPC(r.req)
-			(*r.resCh) <- res
+			for r := range reqCh {
+				res := s.handleJRPC(r.req)
+				(*r.resCh) <- res
+			}
 		}()
 	}
 	return s.e.Start(BindAddress)
