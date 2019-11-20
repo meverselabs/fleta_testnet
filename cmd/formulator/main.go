@@ -513,6 +513,11 @@ func main() {
 
 			Blocks := []*types.Block{}
 			Hashes := []string{}
+			GenHash, err := st.Hash(0)
+			if err != nil {
+				return nil, err
+			}
+			Hashes = append(Hashes, GenHash.String())
 			LevelRoots := []string{}
 			LevelRootsCalced := []string{}
 			for h := uint32(1); h <= Height; h++ {
