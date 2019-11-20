@@ -3,10 +3,7 @@ APIPort = 48000
 GenKeyHex = "THIS_IS_A_PRIVATE_KEY_THAT_IS_FORMATTED_WITH_HEX"
 Formulator = "THIS_IS_A_ADDRESS_OF_THE_FORMULATOR"
 StoreRoot = "./fdata"
-BackendVersion = 1
-RLogHost = ""
-RLogPath = ""
-UseRLog = false
+InsertMode = false
 
 [ObserverKeyMap]
 4JDtZL53jhs7akrTjeaJicnA1ub99vUKkXeySUy6uVZ = "observer0.fletatest.net:47000"

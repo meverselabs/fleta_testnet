@@ -32,8 +32,8 @@ github.com/dustin/go-humanize v1.0.0 h1:VSnTsYCnlFHaM2/igO1h6X3HA71jcobQuxemgkq4
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/edsrzf/mmap-go v1.0.0 h1:CEBF7HpRnUCSJgGUb5h1Gm7e3VkmVDrR8lvWVLtrOFw=
 github.com/edsrzf/mmap-go v1.0.0/go.mod h1:YO35OhQPt3KJa3ryjFM5Bs14WD66h8eGKpfaBNrHW5M=
-github.com/fletaio/fleta v0.0.0-20191011065842-349b4bf48d91 h1:9rj+lDDO+OIrd6+OSv03Gnrk7gIZa9pCwQhtsF2Lhf0=
-github.com/fletaio/fleta v0.0.0-20191011065842-349b4bf48d91/go.mod h1:ZPvhqQln3P7mN5Opk4ib98yJAT6WZOlnAleR8ElKJ9s=
+github.com/fletaio/fleta v0.0.0-20191018031702-ef1a8e2f0b16 h1:duqGRvbBhcgErxytbXbBs11aKkRtyuAcHK3SGpm/Fjk=
+github.com/fletaio/fleta v0.0.0-20191018031702-ef1a8e2f0b16/go.mod h1:ZPvhqQln3P7mN5Opk4ib98yJAT6WZOlnAleR8ElKJ9s=
 github.com/fletaio/webserver v0.0.0-20190926090427-5a62061ed9ca h1:7jhSW1OI1O2NZQw19MPGk5n2oRuLk68loC7K19F/zgM=
 github.com/fletaio/webserver v0.0.0-20190926090427-5a62061ed9ca/go.mod h1:XwfXM59dgQevWarRrhCwvCtBaGVZz3fisUHCzrB7xHQ=
 github.com/fsnotify/fsnotify v1.4.7 h1:IXs+QLmnXW2CcXuY+8Mzv/fWEsPGWxqefPtCP5CnV9I=
@@ -131,6 +131,8 @@ github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6Kllzaw
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
 github.com/valyala/fasttemplate v1.0.1 h1:tY9CJiPnMXf1ERmG2EyK7gNUd+c6RKGD0IfU8WdUSz8=
 github.com/valyala/fasttemplate v1.0.1/go.mod h1:UQGH1tvbgY+Nz5t2n7tXsz52dQxojPUpymEIMZ47gx8=
+github.com/valyala/fasttemplate v1.1.0 h1:RZqt0yGBsps8NGvLSGW804QQqCUYYLsaOjTVHy1Ocw4=
+github.com/valyala/fasttemplate v1.1.0/go.mod h1:UQGH1tvbgY+Nz5t2n7tXsz52dQxojPUpymEIMZ47gx8=
 github.com/vmihailenco/msgpack v4.0.4+incompatible h1:dSLoQfGFAo3F6OoNhwUmLwVgaUXK79GlxNBwueZn0xI=
 github.com/vmihailenco/msgpack v4.0.4+incompatible/go.mod h1:fy3FlTQTDXWkZ7Bh6AcGMlsjHatGryHQYUTf1ShIgkk=
 github.com/xordataexchange/crypt v0.0.3-0.20170626215501-b2862e3d0a77/go.mod h1:aYKd//L2LvnjZzWKhF00oedf4jCCReLcmhLdhm1A27Q=

@@ -131,7 +131,11 @@ func (fr *FormulatorNode) handleObserverMessage(p peer.Peer, m interface{}, Retr
 			fr.Lock()
 			defer fr.Unlock()
 
-			return fr.genBlock(p, req)
+			if len(fr.Config.PoolItems) == 0 {
+				return fr.genBlock(p, req)
+			} else {
+				return fr.genInsertedBlock(p, req)
+			}
 		}(msg)
 		return nil
 	case *BlockGenMessage:
@@ -389,7 +393,7 @@ func (fr *FormulatorNode) updateByGenItem() {
 	}
 }
 
-func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
+func (fr *FormulatorNode) genInsertedBlock(p peer.Peer, msg *BlockReqMessage) error {
 	cp := fr.cs.cn.Provider()
 
 	RemainBlocks := fr.cs.maxBlocksPerFormulator
@@ -465,6 +469,128 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 			}
 		}
 		fr.txpool.Unlock() // Prevent delaying from TxPool.Push
+
+		b, err := bc.Finalize(Timestamp)
+		if err != nil {
+			return err
+		}
+
+		sm := &BlockGenMessage{
+			Block: b,
+		}
+		lastHeader = &b.Header
+
+		if sig, err := fr.key.Sign(encoding.Hash(b.Header)); err != nil {
+			return err
+		} else {
+			sm.GeneratorSignature = sig
+		}
+		dp.Stop()
+
+		p.SendPacket(p2p.MessageToPacket(sm))
+
+		rlog.Println("Formulator", fr.Config.Formulator.String(), "Send.BlockGenMessage", sm.Block.Header.Height, len(sm.Block.Transactions))
+
+		fr.lastGenItemMap[sm.Block.Header.Height] = &genItem{
+			BlockGen: sm,
+			Context:  ctx,
+		}
+		fr.lastGenHeight = ctx.TargetHeight()
+		fr.lastGenTime = time.Now().UnixNano()
+
+		ExpectedTime := 200*time.Millisecond + time.Duration(i)*500*time.Millisecond
+		if i == 0 {
+			ExpectedTime = 200 * time.Millisecond
+		} else if i >= 9 {
+			ExpectedTime = 4200*time.Millisecond + time.Duration(i-9+1)*200*time.Millisecond
+		}
+		PastTime := time.Duration(time.Now().UnixNano() - start)
+		if ExpectedTime > PastTime {
+			IsEnd := false
+			fr.Unlock()
+			if fr.lastReqMessage == nil {
+				IsEnd = true
+			}
+			if !IsEnd {
+				time.Sleep(ExpectedTime - PastTime)
+				if fr.lastReqMessage == nil {
+					IsEnd = true
+				}
+			}
+			fr.Lock()
+			if IsEnd {
+				return nil
+			}
+		} else {
+			IsEnd := false
+			fr.Unlock()
+			if fr.lastReqMessage == nil {
+				IsEnd = true
+			}
+			fr.Lock()
+			if IsEnd {
+				return nil
+			}
+		}
+	}
+	return nil
+}
+
+func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
+	cp := fr.cs.cn.Provider()
+
+	RemainBlocks := fr.cs.maxBlocksPerFormulator
+	if msg.TimeoutCount == 0 {
+		RemainBlocks = fr.cs.maxBlocksPerFormulator - fr.cs.blocksBySameFormulator
+	}
+
+	start := time.Now().UnixNano()
+	Now := uint64(time.Now().UnixNano())
+	StartBlockTime := Now
+	EndBlockTime := StartBlockTime + uint64(500*time.Millisecond)*uint64(RemainBlocks)
+
+	LastTimestamp := cp.LastTimestamp()
+	if StartBlockTime < LastTimestamp {
+		StartBlockTime = LastTimestamp + uint64(time.Millisecond)
+	}
+
+	var lastHeader *types.Header
+	ctx := fr.cs.cn.NewContext()
+	for i := uint32(0); i < RemainBlocks; i++ {
+		var TimeoutCount uint32
+		if i == 0 {
+			TimeoutCount = msg.TimeoutCount
+		} else {
+			ctx = ctx.NextContext(encoding.Hash(lastHeader), lastHeader.Timestamp)
+		}
+
+		Timestamp := StartBlockTime + uint64(i)*uint64(500*time.Millisecond)
+		if Timestamp > EndBlockTime {
+			Timestamp = EndBlockTime
+		}
+		if Timestamp <= ctx.LastTimestamp() {
+			Timestamp = ctx.LastTimestamp() + 1
+		}
+
+		dp := debug.Start("BlockGenBegin")
+		var buffer bytes.Buffer
+		enc := encoding.NewEncoder(&buffer)
+		if err := enc.EncodeUint32(TimeoutCount); err != nil {
+			return err
+		}
+		bc := chain.NewBlockCreator(fr.cs.cn, ctx, msg.Formulator, buffer.Bytes())
+		if err := bc.Init(); err != nil {
+			return err
+		}
+
+		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenBegin", msg.TargetHeight)
+
+		for _, item := range fr.Config.PoolItems {
+			if err := bc.UnsafeAddTx(fr.Config.Formulator, item.TxType, item.TxHash, item.Transaction, item.Signatures, item.Signers); err != nil {
+				rlog.Println("UnsafeAddTx", err)
+				continue
+			}
+		}
 
 		b, err := bc.Finalize(Timestamp)
 		if err != nil {

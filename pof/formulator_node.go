@@ -33,7 +33,7 @@ type genItem struct {
 type FormulatorConfig struct {
 	Formulator              common.Address
 	MaxTransactionsPerBlock int
-	Addrs                   []common.Address
+	PoolItems               []*txpool.PoolItem
 }
 
 // FormulatorNode procudes a block by the consensus

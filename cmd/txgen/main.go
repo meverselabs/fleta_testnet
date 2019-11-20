@@ -18,7 +18,6 @@ import (
 	"github.com/fletaio/fleta_testnet/cmd/config"
 	"github.com/fletaio/fleta_testnet/common"
 	"github.com/fletaio/fleta_testnet/common/key"
-	"github.com/fletaio/fleta_testnet/common/rlog"
 	"github.com/fletaio/fleta_testnet/core/backend"
 	_ "github.com/fletaio/fleta_testnet/core/backend/badger_driver"
 	_ "github.com/fletaio/fleta_testnet/core/backend/buntdb_driver"
@@ -37,16 +36,13 @@ import (
 
 // Config is a configuration for the cmd
 type Config struct {
-	SeedNodeMap    map[string]string
-	NodeKeyHex     string
-	ObserverKeys   []string
-	Port           int
-	APIPort        int
-	StoreRoot      string
-	BackendVersion int
-	RLogHost       string
-	RLogPath       string
-	UseRLog        bool
+	SeedNodeMap  map[string]string
+	NodeKeyHex   string
+	ObserverKeys []string
+	Port         int
+	APIPort      int
+	StoreRoot    string
+	CreateMode   bool
 }
 
 func main() {
@@ -56,13 +52,6 @@ func main() {
 	}
 	if len(cfg.StoreRoot) == 0 {
 		cfg.StoreRoot = "./ndata"
-	}
-	if len(cfg.RLogHost) > 0 && cfg.UseRLog {
-		if len(cfg.RLogPath) == 0 {
-			cfg.RLogPath = "./ndata_rlog"
-		}
-		rlog.SetRLogHost(cfg.RLogHost)
-		rlog.Enablelogger(cfg.RLogPath)
 	}
 
 	var ndkey key.Key
@@ -134,14 +123,7 @@ func main() {
 
 	var back backend.StoreBackend
 	var cdb *pile.DB
-	switch cfg.BackendVersion {
-	case 0:
-		contextDB, err := backend.Create("badger", cfg.StoreRoot)
-		if err != nil {
-			panic(err)
-		}
-		back = contextDB
-	case 1:
+	if true {
 		contextDB, err := backend.Create("buntdb", cfg.StoreRoot+"/context")
 		if err != nil {
 			panic(err)
@@ -177,7 +159,9 @@ func main() {
 	as := apiserver.NewAPIServer()
 	cn.MustAddService(as)
 	ws := NewWatcher()
-	cn.MustAddService(ws)
+	if cfg.CreateMode {
+		cn.MustAddService(ws)
+	}
 	if err := cn.Init(); err != nil {
 		panic(err)
 	}
@@ -224,8 +208,8 @@ func main() {
 	cm.RemoveAll()
 	cm.Add("node", nd)
 
-	waitMap := map[common.Address]*chan struct{}{}
-	if true {
+	if cfg.CreateMode {
+		waitMap := map[common.Address]*chan struct{}{}
 		go func() {
 			switch cfg.NodeKeyHex {
 			case "f07f3de26238cb57776556c67368665a53a969efeddf582028ae0c2344261feb":
@@ -318,21 +302,21 @@ func main() {
 				}(v)
 			}
 		}()
-	}
 
-	go func() {
-		for {
-			b := <-ws.blockCh
-			for _, t := range b.Transactions {
-				if tx, is := t.(*vault.Transfer); is {
-					pCh, has := waitMap[tx.From()]
-					if has {
-						(*pCh) <- struct{}{}
+		go func() {
+			for {
+				b := <-ws.blockCh
+				for _, t := range b.Transactions {
+					if tx, is := t.(*vault.Transfer); is {
+						pCh, has := waitMap[tx.From()]
+						if has {
+							(*pCh) <- struct{}{}
+						}
 					}
 				}
 			}
-		}
-	}()
+		}()
+	}
 
 	go nd.Run(":" + strconv.Itoa(cfg.Port))
 	go as.Run(":" + strconv.Itoa(cfg.APIPort))

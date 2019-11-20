@@ -11,13 +11,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fletaio/fleta_testnet/encoding"
+
 	"github.com/fletaio/fleta_testnet/cmd/app"
 	"github.com/fletaio/fleta_testnet/cmd/closer"
 	"github.com/fletaio/fleta_testnet/cmd/config"
 	"github.com/fletaio/fleta_testnet/common"
 	"github.com/fletaio/fleta_testnet/common/amount"
 	"github.com/fletaio/fleta_testnet/common/key"
-	"github.com/fletaio/fleta_testnet/common/rlog"
 	"github.com/fletaio/fleta_testnet/core/backend"
 	_ "github.com/fletaio/fleta_testnet/core/backend/badger_driver"
 	_ "github.com/fletaio/fleta_testnet/core/backend/buntdb_driver"
@@ -44,10 +45,7 @@ type Config struct {
 	Port           int
 	APIPort        int
 	StoreRoot      string
-	BackendVersion int
-	RLogHost       string
-	RLogPath       string
-	UseRLog        bool
+	InsertMode     bool
 }
 
 func main() {
@@ -58,13 +56,6 @@ func main() {
 	cfg.NodeKeyHex = cfg.GenKeyHex //TEMP
 	if len(cfg.StoreRoot) == 0 {
 		cfg.StoreRoot = "./fdata"
-	}
-	if len(cfg.RLogHost) > 0 && cfg.UseRLog {
-		if len(cfg.RLogPath) == 0 {
-			cfg.RLogPath = "./fdata_rlog"
-		}
-		rlog.SetRLogHost(cfg.RLogHost)
-		rlog.Enablelogger(cfg.RLogPath)
 	}
 
 	var frkey key.Key
@@ -165,14 +156,7 @@ func main() {
 
 	var back backend.StoreBackend
 	var cdb *pile.DB
-	switch cfg.BackendVersion {
-	case 0:
-		contextDB, err := backend.Create("badger", cfg.StoreRoot)
-		if err != nil {
-			panic(err)
-		}
-		back = contextDB
-	case 1:
+	if true {
 		contextDB, err := backend.Create("buntdb", cfg.StoreRoot+"/context")
 		if err != nil {
 			panic(err)
@@ -230,69 +214,75 @@ func main() {
 		panic(err)
 	}
 
-	/*
+	if cfg.InsertMode {
 		switch cfg.GenKeyHex {
 		case "f9d8e80d688c8b79a0470eaf418d0b6d0adac0648af9481f6d58b69ecebeb82c":
 			Addrs = Addrs[:5500]
-		case "a3bcc459e90b575d75a64aa7f8a0e45b610057d2132112f9d5876b358d95609b":
+		case "7b5c05c6a87f650900dafd05fcbdb184c8d5b5f81cb31fff49f9212b44848340":
 			Addrs = Addrs[5500:11000]
-		case "a1dde36e03c1f5cbac2bfb98144d555b5b52f7540e4c83c5d5ca9e47899e953a":
+		case "e85029d11cdfc8595331bec963977a410fdeca1c36dbd89e2ec7c2985a15ac78":
 			Addrs = Addrs[11000:16500]
-		case "27ae44b142780e0d354451cf420a745e26640c1fea4efc40501934abdefe1ba5":
-			Addrs = Addrs[16500:22000]
 		case "e2ec6a295d63d9bf312367773efe0b164d55554a61880741b072c87cd66298ae":
+			Addrs = Addrs[16500:22000]
+		case "bb3f0d6b24dce5d5b4d539a814ba23ff429c1dfacde9a83e72cb4049a38ca113":
 			Addrs = Addrs[22000:27500]
-		case "16e0381a755ea31b5567db0557d173fca57396f54ba734ade9f7a8e420e446b3":
+		case "f322fa429a627772b76249c96d9e4525eb7c7ab66fc8ff16e7f141c1ddd61b6b":
 			Addrs = Addrs[27500:33000]
+		case "a3bcc459e90b575d75a64aa7f8a0e45b610057d2132112f9d5876b358d95609b":
+			Addrs = Addrs[33000:38500]
+		case "0f72009df8bbbf78aed3adbadb31d89410e7a4d4d0b104421b72b5d2e5343577":
+			Addrs = Addrs[38500:44000]
+		case "a0c7e7ab4bb90e55c4e8d6fde2f7e9c18d9e1a9a8ba8cdf8e48caa2e6003f252":
+			Addrs = Addrs[44000:49500]
+		case "16e0381a755ea31b5567db0557d173fca57396f54ba734ade9f7a8e420e446b3":
+			Addrs = Addrs[49500:55000]
+		case "e5db5c29bdfb784f7235f86bfc9ac28e5e6e0507aaacc4b0e1d7db73ee20a1f5":
+			Addrs = Addrs[55000:60500]
+		case "ea060ebefabb620500080461d438748e967965c210991b8e1a7b7435f96585e1":
+			Addrs = Addrs[60500:66000]
 		default:
 			Addrs = []common.Address{}
 		}
-	*/
-	switch cfg.GenKeyHex {
-	case "f9d8e80d688c8b79a0470eaf418d0b6d0adac0648af9481f6d58b69ecebeb82c":
-		Addrs = Addrs[:2000]
-	case "7b5c05c6a87f650900dafd05fcbdb184c8d5b5f81cb31fff49f9212b44848340":
-		Addrs = Addrs[2000:4000]
-	case "e85029d11cdfc8595331bec963977a410fdeca1c36dbd89e2ec7c2985a15ac78":
-		Addrs = Addrs[4000:6000]
-	case "e2ec6a295d63d9bf312367773efe0b164d55554a61880741b072c87cd66298ae":
-		Addrs = Addrs[6000:8000]
-	case "bb3f0d6b24dce5d5b4d539a814ba23ff429c1dfacde9a83e72cb4049a38ca113":
-		Addrs = Addrs[8000:10000]
-	case "f322fa429a627772b76249c96d9e4525eb7c7ab66fc8ff16e7f141c1ddd61b6b":
-		Addrs = Addrs[10000:12000]
-	case "a3bcc459e90b575d75a64aa7f8a0e45b610057d2132112f9d5876b358d95609b":
-		Addrs = Addrs[12000:14000]
-	case "0f72009df8bbbf78aed3adbadb31d89410e7a4d4d0b104421b72b5d2e5343577":
-		Addrs = Addrs[14000:16000]
-	case "a0c7e7ab4bb90e55c4e8d6fde2f7e9c18d9e1a9a8ba8cdf8e48caa2e6003f252":
-		Addrs = Addrs[16000:18000]
-	case "16e0381a755ea31b5567db0557d173fca57396f54ba734ade9f7a8e420e446b3":
-		Addrs = Addrs[18000:20000]
-	case "e5db5c29bdfb784f7235f86bfc9ac28e5e6e0507aaacc4b0e1d7db73ee20a1f5":
-		Addrs = Addrs[20000:22000]
-	case "ea060ebefabb620500080461d438748e967965c210991b8e1a7b7435f96585e1":
-		Addrs = Addrs[22000:24000]
-	case "a1dde36e03c1f5cbac2bfb98144d555b5b52f7540e4c83c5d5ca9e47899e953a":
-		Addrs = Addrs[24000:26000]
-	case "f0e2a23800f13ed4e8ddd8078d6114603071ef3d2e52e99d0924ee61520029a7":
-		Addrs = Addrs[26000:28000]
-	case "720195dbc812cfa59031f69bf8f7656b9bb2cc48e11d312408f91d66044304fd":
-		Addrs = Addrs[28000:30000]
-	case "27ae44b142780e0d354451cf420a745e26640c1fea4efc40501934abdefe1ba5":
-		Addrs = Addrs[30000:32000]
-	case "f3e11befbc0f149643265fd1a58073f23c9d4ab698ad488fc87ad2445dd9b8fc":
-		Addrs = Addrs[32000:34000]
-	case "763402d42103a6cafc650ccefbb9a1a8b480b9eed845d426665aeec60189ee38":
-		Addrs = Addrs[34000:36000]
-	default:
+	} else {
 		Addrs = []common.Address{}
+	}
+
+	PoolItems := []*txpool.PoolItem{}
+	if true {
+		key, _ := key.NewMemoryKeyFromString("fd1167aad31c104c9fceb5b8a4ffd3e20a272af82176352d3b6ac236d02bafd4")
+		signer := common.NewPublicHash(key.PublicKey())
+		fc := encoding.Factory("transaction")
+		for _, Addr := range Addrs {
+			tx := &vault.TransferUnsafe{
+				Timestamp_: uint64(time.Now().UnixNano()),
+				From_:      Addr,
+				To:         Addr,
+				Amount:     amount.NewCoinAmount(1, 0),
+			}
+			t, err := fc.TypeOf(tx)
+			if err != nil {
+				panic(err)
+			}
+			TxHash := chain.HashTransactionByType(ChainID, t, tx)
+			sig, err := key.Sign(TxHash)
+			if err != nil {
+				panic(err)
+			}
+			item := &txpool.PoolItem{
+				TxType:      t,
+				TxHash:      TxHash,
+				Transaction: tx,
+				Signatures:  []common.Signature{sig},
+				Signers:     []common.PublicHash{signer},
+			}
+			PoolItems = append(PoolItems, item)
+		}
 	}
 
 	fr := pof.NewFormulatorNode(&pof.FormulatorConfig{
 		Formulator:              common.MustParseAddress(cfg.Formulator),
 		MaxTransactionsPerBlock: 7000,
-		Addrs:                   Addrs,
+		PoolItems:               PoolItems,
 	}, frkey, ndkey, NetAddressMap, SeedNodeMap, cs, cfg.StoreRoot+"/peer")
 	if err := fr.Init(); err != nil {
 		panic(err)

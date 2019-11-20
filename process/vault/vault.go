@@ -52,6 +52,7 @@ func (p *Vault) Init(reg *types.Register, pm types.ProcessManager, cn types.Prov
 	reg.RegisterTransaction(5, &CreateMultiAccount{})
 	reg.RegisterTransaction(9, &IssueAccount{})
 	reg.RegisterTransaction(10, &UpdatePolicy{})
+	reg.RegisterTransaction(99, &TransferUnsafe{})
 
 	if vp, err := pm.ProcessByName("fleta.admin"); err != nil {
 		return err
