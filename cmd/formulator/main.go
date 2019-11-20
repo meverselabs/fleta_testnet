@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gorilla/websocket"
+
 	"github.com/fletaio/fleta_testnet/common/hash"
 
 	uuid "github.com/satori/go.uuid"
@@ -588,8 +590,11 @@ func main() {
 				go func() {
 					defer wg.Done()
 
+					c, _, _ := websocket.DefaultDialer.Dial("ws://localhost:48000/api/endpoints/websocket", nil)
+					defer c.Close()
+
 					for q := 0; q < requestPerUser; q++ {
-						if _, err := GetBalance("5CyLcFhpyN"); err != nil {
+						if _, err := GetBalance(c, "5CyLcFhpyN"); err != nil {
 							atomic.AddUint64(&ErrorCount, 1)
 						} else {
 							atomic.AddUint64(&SuccessCount, 1)
@@ -760,8 +765,8 @@ func (s *Watcher) OnBlockConnected(b *types.Block, events []types.Event, loader 
 	s.blockCh <- b
 }
 
-func GetBalance(addr string) (string, error) {
-	res, err := DoRequest("http://localhost:48000", "vault.balance", []interface{}{addr})
+func GetBalance(c *websocket.Conn, addr string) (string, error) {
+	res, err := DoRequest(c, "vault.balance", []interface{}{addr})
 	if err != nil {
 		return "", err
 	} else {

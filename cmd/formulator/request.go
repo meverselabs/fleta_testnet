@@ -1,18 +1,18 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
+
+	"github.com/gorilla/websocket"
 
 	uuid "github.com/satori/go.uuid"
 
 	"github.com/fletaio/fleta_testnet/service/apiserver"
 )
 
-func DoRequest(hostURL string, Method string, Params []interface{}) (interface{}, error) {
+func DoRequest(c *websocket.Conn, Method string, Params []interface{}) (interface{}, error) {
 	id := uuid.NewV1().String()
 	req := &apiserver.JRPCRequest{
 		JSONRPC: "2.0",
@@ -24,14 +24,17 @@ func DoRequest(hostURL string, Method string, Params []interface{}) (interface{}
 	if err != nil {
 		return nil, err
 	}
-	r, err := http.Post(hostURL+"/api/endpoints/http", "application/json", bytes.NewReader(bs))
+	if err := c.WriteMessage(websocket.TextMessage, bs); err != nil {
+		return nil, err
+	}
+
+	_, data, err := c.ReadMessage()
 	if err != nil {
 		return nil, err
 	}
-	defer r.Body.Close()
 
 	var res apiserver.JRPCResponse
-	if err := json.NewDecoder(r.Body).Decode(&res); err != nil {
+	if json.Unmarshal(data, &res); err != nil {
 		return nil, err
 	}
 	if res.Error != nil {
