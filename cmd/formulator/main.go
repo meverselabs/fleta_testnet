@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fletaio/fleta_testnet/common/hash"
+
 	uuid "github.com/satori/go.uuid"
 
 	"github.com/fletaio/fleta_testnet/cmd/app"
@@ -38,17 +40,16 @@ import (
 
 // Config is a configuration for the cmd
 type Config struct {
-	SeedNodeMap      map[string]string
-	ObserverKeyMap   map[string]string
-	GenKeyHex        string
-	NodeKeyHex       string
-	Formulator       string
-	Port             int
-	APIPort          int
-	StoreRoot        string
-	InsertMode       bool
-	InsertBlockCount uint32
-	InsertTxCount    int
+	SeedNodeMap    map[string]string
+	ObserverKeyMap map[string]string
+	GenKeyHex      string
+	NodeKeyHex     string
+	Formulator     string
+	Port           int
+	APIPort        int
+	StoreRoot      string
+	InsertMode     bool
+	InsertTxCount  int
 }
 
 func main() {
@@ -120,24 +121,24 @@ func main() {
 		}
 		SeedNodeMap[pubhash] = netAddr
 	}
-	SeedNodeMap[common.MustParsePublicHash("4YjmYcLVvBSmtjh4Z7frRZhWgdEAYTSABCoqqzhKEJa")] = "199.247.2.136:41000"
-	SeedNodeMap[common.MustParsePublicHash("27n37VV3ebGWSNH5r9wX3ZhUwzxC2heY34UvXjizLDK")] = "199.247.0.226:41000"
-	SeedNodeMap[common.MustParsePublicHash("4ew8HQEwwSqeepMDCnwN9PiYg1uvoeZXyudqdQZBCb3")] = "149.28.240.38:41000"
-	SeedNodeMap[common.MustParsePublicHash("VbMwA5AwSfn93ks8HMv7vvSx4THuzfeefTWVoANEha")] = "149.28.249.207:41000"
-	SeedNodeMap[common.MustParsePublicHash("3ZdKaqaCbGSQ5xmAphzVTeEF1eGzX6iU4LLGD2ox2g9")] = "45.77.59.252:41000"
-	SeedNodeMap[common.MustParsePublicHash("3UHQyJwSSHHCw29fB5xiGk9W7GNf1DjGC284WhW6jpD")] = "108.61.172.231:41000"
-	SeedNodeMap[common.MustParsePublicHash("3HhrC3gPR951SjnxjnHpfhRSWH1iR3SbCSwtCHvTLuC")] = "45.32.173.38:41000"
-	SeedNodeMap[common.MustParsePublicHash("4Ei1HSF3KtDfGrdzHCWfRf4NSTZ2oYCT1CNGFkjV1WB")] = "149.28.106.61:41000"
-	SeedNodeMap[common.MustParsePublicHash("CV3cNk8UZxJcsLYjSgMdKuMf7VbDnbHXyqvb2rSE4y")] = "140.82.63.172:41000"
-	SeedNodeMap[common.MustParsePublicHash("38qmoMNCuBht1ihjCKVV5nTWvfiDU7NBNeeHWhB7eT7")] = "45.77.76.27:41000"
-	SeedNodeMap[common.MustParsePublicHash("EMLGsnW7RvSWTtmArG7aJuASvR7iFwg7uy59FmAwT2")] = "140.82.52.163:41000"
-	SeedNodeMap[common.MustParsePublicHash("3Uo6d6w1Xrebq1j42Nm2TguHn42R5MgZTMHBwP4HfrX")] = "95.179.209.187:41000"
-	SeedNodeMap[common.MustParsePublicHash("MP6nHXaNjZRXFfSffbRuMDhjsS8YFxEsrtrDAZ9bNW")] = "80.240.18.208:41000"
-	SeedNodeMap[common.MustParsePublicHash("4FQ3TVTWQi7TPDerc8nZUBtHyPaNRccA44ushVRWCKW")] = "144.202.69.204:41000"
-	SeedNodeMap[common.MustParsePublicHash("3Ue7mXou8FJouGUyn7MtmahGNgevHt7KssNB2E9wRgL")] = "78.141.196.120:41000"
-	SeedNodeMap[common.MustParsePublicHash("MZtuTqpsdGLm9QXKaM68sTDwUCyitL7q4L75Vrpwbo")] = "207.246.69.195:41000"
-	SeedNodeMap[common.MustParsePublicHash("2G7uZMucLN3BQYZsjhGhE8cXiJNMGccexqdb4kxHeq")] = "45.63.1.207:41000"
-	SeedNodeMap[common.MustParsePublicHash("3BrmvxpBRVifN5ddEo2FDw6jPZYZwEYeMbtKfKScHbs")] = "140.82.55.177:41000"
+	SeedNodeMap[common.MustParsePublicHash("4YjmYcLVvBSmtjh4Z7frRZhWgdEAYTSABCoqqzhKEJa")] = "45.77.147.144:41000"
+	SeedNodeMap[common.MustParsePublicHash("27n37VV3ebGWSNH5r9wX3ZhUwzxC2heY34UvXjizLDK")] = "108.61.82.48:41000"
+	SeedNodeMap[common.MustParsePublicHash("4GzTnuP7Hky1Dye1AJMLzEXTX2a5kEka5h9AJVvZyTD")] = "107.191.43.224:41000"
+	SeedNodeMap[common.MustParsePublicHash("4ew8HQEwwSqeepMDCnwN9PiYg1uvoeZXyudqdQZBCb3")] = "140.82.7.91:41000"
+	SeedNodeMap[common.MustParsePublicHash("VbMwA5AwSfn93ks8HMv7vvSx4THuzfeefTWVoANEha")] = "149.28.57.20:41000"
+	SeedNodeMap[common.MustParsePublicHash("8eDJ3h8DLW8RSovYUjxmcDi1QNvo7UW64MQxGZ9dnS")] = "45.76.2.218:41000"
+	SeedNodeMap[common.MustParsePublicHash("3ZdKaqaCbGSQ5xmAphzVTeEF1eGzX6iU4LLGD2ox2g9")] = "45.63.10.124:41000"
+	SeedNodeMap[common.MustParsePublicHash("3UHQyJwSSHHCw29fB5xiGk9W7GNf1DjGC284WhW6jpD")] = "149.28.229.121:41000"
+	SeedNodeMap[common.MustParsePublicHash("v3GwqbQehcqNVYbRzDk3TDJ7yJ19DgwoamZnMJZuVg")] = "66.55.159.135:41000"
+	SeedNodeMap[common.MustParsePublicHash("3HhrC3gPR951SjnxjnHpfhRSWH1iR3SbCSwtCHvTLuC")] = "208.167.233.43:41000"
+	SeedNodeMap[common.MustParsePublicHash("4Ei1HSF3KtDfGrdzHCWfRf4NSTZ2oYCT1CNGFkjV1WB")] = "144.202.0.171:41000"
+	SeedNodeMap[common.MustParsePublicHash("3u6v76WAknSq1j86Pfb6p31FsBAJztPdVmY1kkw4k66")] = "208.167.239.236:41000"
+	SeedNodeMap[common.MustParsePublicHash("MP6nHXaNjZRXFfSffbRuMDhjsS8YFxEsrtrDAZ9bNW")] = "45.76.6.45:41000"
+	SeedNodeMap[common.MustParsePublicHash("4FQ3TVTWQi7TPDerc8nZUBtHyPaNRccA44ushVRWCKW")] = "45.76.0.241:41000"
+	SeedNodeMap[common.MustParsePublicHash("3Ue7mXou8FJouGUyn7MtmahGNgevHt7KssNB2E9wRgL")] = "45.77.100.83:41000"
+	SeedNodeMap[common.MustParsePublicHash("MZtuTqpsdGLm9QXKaM68sTDwUCyitL7q4L75Vrpwbo")] = "207.148.18.155:41000"
+	SeedNodeMap[common.MustParsePublicHash("2fJTp1KMwBqJRqpwGgH5kUCtfBjUBGYgd8oXEA8V9AY")] = "207.246.127.38:41000"
+	SeedNodeMap[common.MustParsePublicHash("3yTFnJJqx3wCiK2Edk9f9JwdvdkC4DP4T1y8xYztMkf")] = "45.63.13.183:41000"
 
 	cm := closer.NewManager()
 	sigc := make(chan os.Signal, 1)
@@ -291,7 +292,6 @@ func main() {
 		Formulator:              common.MustParseAddress(cfg.Formulator),
 		MaxTransactionsPerBlock: 7000,
 		PoolItems:               PoolItems,
-		InsertBlockCount:        cfg.InsertBlockCount,
 	}, frkey, ndkey, NetAddressMap, SeedNodeMap, cs, cfg.StoreRoot+"/peer")
 	if err := fr.Init(); err != nil {
 		panic(err)
@@ -345,7 +345,6 @@ func main() {
 
 			Blocks := []*types.Block{}
 			Txs := []types.Transaction{}
-			var MinTPS float64
 			var MaxTPS float64
 			for h := uint32(1); h <= Height; h++ {
 				b, err := st.Block(h)
@@ -353,19 +352,14 @@ func main() {
 					return nil, err
 				}
 
-				if h == 0 {
-					MinTPS = float64(len(b.Transactions) * 2)
+				if len(Blocks) == 0 {
 					MaxTPS = float64(len(b.Transactions) * 2)
 				} else {
 					TPS := float64(len(b.Transactions)) * float64(time.Second) / float64(b.Header.Timestamp-Blocks[len(Blocks)-1].Header.Timestamp)
-					if MinTPS > TPS {
-						MinTPS = TPS
-					}
 					if MaxTPS < TPS {
 						MaxTPS = TPS
 					}
 				}
-
 				Blocks = append(Blocks, b)
 				Txs = append(Txs, b.Transactions...)
 			}
@@ -374,18 +368,71 @@ func main() {
 			return &struct {
 				TargetHeight uint32
 				ChainHeight  uint32
-				TimeElapsed  uint64
 				TxCount      int
-				MinTPS       float64
+				TimeElapsed  float64
 				MaxTPS       float64
 				MeanTPS      float64
 			}{
 				TargetHeight: Height,
 				ChainHeight:  st.Height(),
-				TimeElapsed:  TimeElapsed,
 				TxCount:      len(Txs),
-				MinTPS:       MinTPS,
-				MaxTPS:       MaxTPS,
+				TimeElapsed:  float64(TimeElapsed) / float64(time.Second),
+				MeanTPS:      float64(len(Txs)) * float64(time.Second) / float64(TimeElapsed),
+			}, nil
+		})
+		s.Set("summary0tx", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
+			if arg.Len() != 1 {
+				return nil, apiserver.ErrInvalidArgument
+			}
+			Height, err := arg.Uint32(0)
+			if err != nil {
+				return nil, apiserver.ErrInvalidArgument
+			}
+			if Height > st.Height() {
+				return nil, apiserver.ErrInvalidArgument
+			}
+
+			Blocks := []*types.Block{}
+			Txs := []types.Transaction{}
+			var MaxTPS float64
+			var FirstTxTimestamp uint64
+			for h := uint32(1); h <= Height; h++ {
+				b, err := st.Block(h)
+				if err != nil {
+					return nil, err
+				}
+
+				if len(Blocks) == 0 {
+					MaxTPS = float64(len(b.Transactions) * 2)
+				} else {
+					TPS := float64(len(b.Transactions)) * float64(time.Second) / float64(b.Header.Timestamp-Blocks[len(Blocks)-1].Header.Timestamp)
+					if MaxTPS < TPS {
+						MaxTPS = TPS
+					}
+				}
+				if FirstTxTimestamp == 0 {
+					if len(b.Transactions) > 0 {
+						FirstTxTimestamp = b.Transactions[0].Timestamp()
+					}
+				}
+
+				Blocks = append(Blocks, b)
+				Txs = append(Txs, b.Transactions...)
+			}
+
+			TimeElapsed := Blocks[len(Blocks)-1].Header.Timestamp - FirstTxTimestamp
+			return &struct {
+				TargetHeight uint32
+				ChainHeight  uint32
+				TxCount      int
+				TimeElapsed  float64
+				MaxTPS       float64
+				MeanTPS      float64
+			}{
+				TargetHeight: Height,
+				ChainHeight:  st.Height(),
+				TxCount:      len(Txs),
+				TimeElapsed:  float64(TimeElapsed) / float64(time.Second),
 				MeanTPS:      float64(len(Txs)) * float64(time.Second) / float64(TimeElapsed),
 			}, nil
 		})
@@ -429,6 +476,7 @@ func main() {
 			tx := &vault.TextData{
 				Timestamp_: uint64(time.Now().UnixNano()),
 				From_:      common.NewAddress(0, uint16(21000), 0),
+				Seq_:       st.Seq(common.NewAddress(0, uint16(21000), 0)) + 1,
 				ID:         id,
 				TextData:   text,
 			}
@@ -450,6 +498,60 @@ func main() {
 				return nil, err
 			}
 			return vp.TextData(cn.NewContext(), id), nil
+		})
+		s.Set("checkIntegrity", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
+			if arg.Len() != 1 {
+				return nil, apiserver.ErrInvalidArgument
+			}
+			Height, err := arg.Uint32(0)
+			if err != nil {
+				return nil, apiserver.ErrInvalidArgument
+			}
+			if Height > st.Height() {
+				return nil, apiserver.ErrInvalidArgument
+			}
+
+			Blocks := []*types.Block{}
+			Hashes := []string{}
+			LevelRoots := []string{}
+			LevelRootsCalced := []string{}
+			for h := uint32(1); h <= Height; h++ {
+				b, err := st.Block(h)
+				if err != nil {
+					return nil, err
+				}
+				Blocks = append(Blocks, b)
+
+				TxHashes := make([]hash.Hash256, len(b.Transactions)+1)
+				TxHashes[0] = b.Header.PrevHash
+
+				for i, tx := range b.Transactions {
+					t := b.TransactionTypes[i]
+					TxHash := chain.HashTransactionByType(st.ChainID(), t, tx)
+					TxHashes[i+1] = TxHash
+				}
+				LevelRoot, err := chain.BuildLevelRoot(TxHashes)
+				if err != nil {
+					return nil, err
+				}
+				LevelRoots = append(LevelRoots, b.Header.LevelRootHash.String())
+				LevelRootsCalced = append(LevelRootsCalced, LevelRoot.String())
+				Hashes = append(Hashes, encoding.Hash(b.Header).String())
+			}
+
+			return &struct {
+				TargetHeight     uint32
+				ChainHeight      uint32
+				Hashes           []string
+				LevelRoots       []string
+				LevelRootsCalced []string
+			}{
+				TargetHeight:     Height,
+				ChainHeight:      st.Height(),
+				Hashes:           Hashes,
+				LevelRoots:       LevelRoots,
+				LevelRootsCalced: LevelRootsCalced,
+			}, nil
 		})
 	}
 
