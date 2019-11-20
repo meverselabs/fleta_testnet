@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -578,6 +579,8 @@ func main() {
 				return nil, err
 			}
 
+			var SuccessCount uint64
+			var ErrorCount uint64
 			start := time.Now()
 			var wg sync.WaitGroup
 			for i := 0; i < userCount; i++ {
@@ -586,12 +589,28 @@ func main() {
 					defer wg.Done()
 
 					for q := 0; q < requestPerUser; q++ {
-						GetBalance("5CyLcFhpyN")
+						if _, err := GetBalance("5CyLcFhpyN"); err != nil {
+							atomic.AddUint64(&ErrorCount, 1)
+						} else {
+							atomic.AddUint64(&SuccessCount, 1)
+						}
 					}
 				}()
 			}
 			wg.Wait()
-			return float64(time.Now().Sub(start)) / float64(time.Second), nil
+
+			TimeElapsed := time.Now().Sub(start)
+			return &struct {
+				SuccessCount uint64
+				ErrorCount   uint64
+				TimeElapsed  float64
+				TPS          float64
+			}{
+				SuccessCount: SuccessCount,
+				ErrorCount:   ErrorCount,
+				TimeElapsed:  float64(TimeElapsed) / float64(time.Second),
+				TPS:          float64(SuccessCount+ErrorCount) * float64(time.Second) / float64(TimeElapsed),
+			}, nil
 		})
 	}
 
