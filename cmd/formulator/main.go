@@ -574,7 +574,7 @@ func main() {
 			if err != nil {
 				return nil, err
 			}
-			requestPerUser, err := arg.Int(0)
+			requestPerUser, err := arg.Int(1)
 			if err != nil {
 				return nil, err
 			}
