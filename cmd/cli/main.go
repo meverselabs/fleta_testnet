@@ -526,14 +526,14 @@ func main() {
 				fmt.Println("[Success]")
 			}
 			time.Sleep(5 * time.Second)
-			//요약 정보
+			//읽기 테스트
 			fmt.Println("[Start Read Test]")
 			ret, err := GetReadTest(Formulators[0].ServerIP, args[0], args[1])
 			if err != nil {
 				fmt.Println("[Fail] - ", err)
 				return
 			}
-			fmt.Println(ret)
+			fmt.Println("Read Finished", ret)
 		},
 	})
 	testCmd.AddCommand(&cobra.Command{

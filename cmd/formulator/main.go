@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"io/ioutil"
 	"log"
 	"os"
@@ -586,8 +587,7 @@ func main() {
 					defer wg.Done()
 
 					for q := 0; q < requestPerUser; q++ {
-						ctx := cn.NewContext()
-						vp.Balance(ctx, addr)
+						GetHeight()
 					}
 				}()
 			}
@@ -740,4 +740,22 @@ func (s *Watcher) addAddress(addr common.Address) *chan struct{} {
 // OnBlockConnected called when a block is connected to the chain
 func (s *Watcher) OnBlockConnected(b *types.Block, events []types.Event, loader types.Loader) {
 	s.blockCh <- b
+}
+
+func GetHeight() (uint32, error) {
+	res, err := DoRequest("http://localhost:48000", "chain.height", []interface{}{})
+	if err != nil {
+		return 0, err
+	} else {
+		bs, err := json.MarshalIndent(res, "", "\t")
+		if err != nil {
+			return 0, err
+		} else {
+			iv, err := strconv.ParseUint(string(bs), 10, 32)
+			if err != nil {
+				return 0, err
+			}
+			return uint32(iv), nil
+		}
+	}
 }
