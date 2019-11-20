@@ -377,6 +377,7 @@ func main() {
 				ChainHeight:  st.Height(),
 				TxCount:      len(Txs),
 				TimeElapsed:  float64(TimeElapsed) / float64(time.Second),
+				MaxTPS:       MaxTPS,
 				MeanTPS:      float64(len(Txs)) * float64(time.Second) / float64(TimeElapsed),
 			}, nil
 		})
