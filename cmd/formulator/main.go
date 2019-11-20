@@ -515,6 +515,7 @@ func main() {
 
 			Blocks := []*types.Block{}
 			Hashes := []string{}
+			PrevHashes := []string{}
 			GenHash, err := st.Hash(0)
 			if err != nil {
 				return nil, err
@@ -544,6 +545,7 @@ func main() {
 				LevelRoots = append(LevelRoots, b.Header.LevelRootHash.String())
 				LevelRootsCalced = append(LevelRootsCalced, LevelRoot.String())
 				Hashes = append(Hashes, encoding.Hash(b.Header).String())
+				PrevHashes = append(PrevHashes, b.Header.PrevHash.String())
 			}
 
 			return &struct {
