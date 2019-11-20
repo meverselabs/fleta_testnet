@@ -11,6 +11,7 @@ import (
 // TextData is a TextData
 type TextData struct {
 	Timestamp_ uint64
+	Seq_       uint64
 	From_      common.Address
 	ID         string
 	TextData   string
@@ -19,6 +20,11 @@ type TextData struct {
 // Timestamp returns the timestamp of the transaction
 func (tx *TextData) Timestamp() uint64 {
 	return tx.Timestamp_
+}
+
+// Seq returns the sequence of the transaction
+func (tx *TextData) Seq() uint64 {
+	return tx.Seq_
 }
 
 // From returns the from address of the transaction
@@ -51,6 +57,20 @@ func (tx *TextData) MarshalJSON() ([]byte, error) {
 	buffer.WriteString(`{`)
 	buffer.WriteString(`"timestamp":`)
 	if bs, err := json.Marshal(tx.Timestamp_); err != nil {
+		return nil, err
+	} else {
+		buffer.Write(bs)
+	}
+	buffer.WriteString(`,`)
+	buffer.WriteString(`"seq":`)
+	if bs, err := json.Marshal(tx.Seq_); err != nil {
+		return nil, err
+	} else {
+		buffer.Write(bs)
+	}
+	buffer.WriteString(`,`)
+	buffer.WriteString(`"from":`)
+	if bs, err := tx.From_.MarshalJSON(); err != nil {
 		return nil, err
 	} else {
 		buffer.Write(bs)
