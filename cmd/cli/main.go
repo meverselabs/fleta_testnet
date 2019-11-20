@@ -709,7 +709,7 @@ func main() {
 			wg2.Wait()
 
 			TimeElapsed := time.Now().Sub(start)
-			fmt.Println(struct {
+			bs, err := json.Marshal(struct {
 				SuccessCount uint64
 				ErrorCount   uint64
 				TimeElapsed  float64
@@ -720,6 +720,11 @@ func main() {
 				TimeElapsed:  float64(TimeElapsed) / float64(time.Second),
 				TPS:          float64(SuccessCount+ErrorCount) * float64(time.Second) / float64(TimeElapsed),
 			})
+			if err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			}
+			fmt.Println(string(bs))
 		},
 	})
 	testCmd.AddCommand(&cobra.Command{
