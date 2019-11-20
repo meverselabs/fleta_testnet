@@ -131,10 +131,10 @@ func (fr *FormulatorNode) handleObserverMessage(p peer.Peer, m interface{}, Retr
 			fr.Lock()
 			defer fr.Unlock()
 
-			if len(fr.Config.PoolItems) == 0 && req.TargetHeight <= fr.Config.InsertBlockCount {
-				return fr.genBlock(p, req)
-			} else {
+			if len(fr.Config.PoolItems) > 0 {
 				return fr.genInsertedBlock(p, req)
+			} else {
+				return fr.genBlock(p, req)
 			}
 		}(msg)
 		return nil
@@ -393,7 +393,7 @@ func (fr *FormulatorNode) updateByGenItem() {
 	}
 }
 
-func (fr *FormulatorNode) genInsertedBlock(p peer.Peer, msg *BlockReqMessage) error {
+func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 	cp := fr.cs.cn.Provider()
 
 	RemainBlocks := fr.cs.maxBlocksPerFormulator
@@ -536,7 +536,7 @@ func (fr *FormulatorNode) genInsertedBlock(p peer.Peer, msg *BlockReqMessage) er
 	return nil
 }
 
-func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
+func (fr *FormulatorNode) genInsertedBlock(p peer.Peer, msg *BlockReqMessage) error {
 	cp := fr.cs.cn.Provider()
 
 	RemainBlocks := fr.cs.maxBlocksPerFormulator

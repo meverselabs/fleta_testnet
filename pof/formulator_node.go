@@ -34,7 +34,6 @@ type FormulatorConfig struct {
 	Formulator              common.Address
 	MaxTransactionsPerBlock int
 	PoolItems               []*txpool.PoolItem
-	InsertBlockCount        uint32
 }
 
 // FormulatorNode procudes a block by the consensus
