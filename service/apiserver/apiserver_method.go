@@ -74,7 +74,15 @@ func (s *APIServer) Run(BindAddress string) error {
 				if err := dec.Decode(&req); err != nil {
 					return err
 				}
-				res := s.handleJRPC(&req)
+				resCh := make(chan *JRPCResponse)
+				reqCh <- &ReqData{
+					req:   &req,
+					resCh: &resCh,
+				}
+				/*
+					res := s.handleJRPC(&req)
+				*/
+				res := <-resCh
 				if res != nil {
 					if err := conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
 						return err

@@ -595,6 +595,7 @@ func main() {
 
 					for q := 0; q < requestPerUser; q++ {
 						if _, err := GetBalance(c, "5CyLcFhpyN"); err != nil {
+							log.Println(err)
 							atomic.AddUint64(&ErrorCount, 1)
 						} else {
 							atomic.AddUint64(&SuccessCount, 1)
