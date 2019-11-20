@@ -5,12 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
 )
@@ -32,6 +35,20 @@ type Info struct {
 	Key        string
 	KeyHash    string
 	Conn       *ServerConn
+}
+
+func GetBalance(c *websocket.Conn, addr string) (string, error) {
+	res, err := DoRequest2(c, "vault.balance", []interface{}{addr})
+	if err != nil {
+		return "", err
+	} else {
+		bs, err := json.MarshalIndent(res, "", "\t")
+		if err != nil {
+			return "", err
+		} else {
+			return string(bs), nil
+		}
+	}
 }
 
 func main() {
@@ -533,7 +550,176 @@ func main() {
 				fmt.Println("[Fail] - ", err)
 				return
 			}
-			fmt.Println("Read Finished", ret)
+			fmt.Println(ret)
+		},
+	})
+	testCmd.AddCommand(&cobra.Command{
+		Use:   "2a [user count] [request per user]",
+		Short: "read test",
+		Args:  cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if _, err := strconv.ParseUint(args[0], 10, 32); err != nil {
+				panic(err)
+			}
+			if _, err := strconv.ParseUint(args[1], 10, 64); err != nil {
+				panic(err)
+			}
+
+			// 서버에 연결
+			var wg sync.WaitGroup
+			for _, v := range Alls {
+				wg.Add(1)
+				go func(info *Info) {
+					defer wg.Done()
+
+					s := NewServer(info.ServerIP, config)
+					c, err := s.Open()
+					if err != nil {
+						panic(err)
+					}
+					info.Conn = c
+				}(v)
+			}
+			wg.Wait()
+
+			//서비스 정지
+			fmt.Print("Stop All Services... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return StopService(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			//데이터 클리어
+			fmt.Print("Clear Data ... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return ClearData(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			//생성 모드 On
+			fmt.Print("Turn On Create Mode ... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return ChangeMode(info, "create", "")
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			//서비스 시작
+			fmt.Print("Start All Services... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return StartService(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			time.Sleep(5 * time.Second)
+			//가동 높이 진행 확인하고 지정된 블록 진행
+			BlockCount := uint32(10)
+			BlockCountStr := strconv.FormatUint(uint64(BlockCount), 10)
+			fmt.Println("Wait until " + BlockCountStr + " blocks")
+			var TryCount uint32
+			for {
+				Height, err := GetHeight(Formulators[0].ServerIP)
+				if err != nil {
+					fmt.Println("[Fail] - ", err)
+					return
+				}
+				if Height >= BlockCount {
+					fmt.Println("Reach to " + BlockCountStr + " blocks [Success]")
+					break
+				}
+				time.Sleep(1 * time.Second)
+				TryCount++
+				if TryCount%5 == 0 {
+					fmt.Println("Fetching Height :", Height)
+				}
+				if TryCount > BlockCount {
+					fmt.Println("Reach to " + BlockCountStr + " blocks [Fail] - Cannot reach to objective height within " + BlockCountStr + " seconds")
+					return
+				}
+			}
+			//서비스 정지
+			fmt.Print("Stop All Services... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return StopService(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			//일반 모드 On
+			fmt.Print("Turn On Normal Mode ... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return ChangeMode(info, "normal", "")
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			//서비스 시작
+			fmt.Print("Start All Services... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return StartService(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			time.Sleep(5 * time.Second)
+			//읽기 테스트
+			fmt.Println("[Start Read Test (From Local)]")
+			userCount, _ := strconv.Atoi(args[0])
+			requestPerUser, _ := strconv.Atoi(args[1])
+
+			var SuccessCount uint64
+			var ErrorCount uint64
+			start := time.Now()
+			var wg2 sync.WaitGroup
+			for i := 0; i < userCount; i++ {
+				wg2.Add(1)
+				go func() {
+					defer wg2.Done()
+
+					c, _, _ := websocket.DefaultDialer.Dial("ws://45.77.147.144:48000/api/endpoints/websocket", nil)
+					defer c.Close()
+
+					for q := 0; q < requestPerUser; q++ {
+						if _, err := GetBalance(c, "5CyLcFhpyN"); err != nil {
+							log.Println(err)
+							atomic.AddUint64(&ErrorCount, 1)
+						} else {
+							atomic.AddUint64(&SuccessCount, 1)
+						}
+					}
+				}()
+			}
+			wg2.Wait()
+
+			TimeElapsed := time.Now().Sub(start)
+			fmt.Println(struct {
+				SuccessCount uint64
+				ErrorCount   uint64
+				TimeElapsed  float64
+				TPS          float64
+			}{
+				SuccessCount: SuccessCount,
+				ErrorCount:   ErrorCount,
+				TimeElapsed:  float64(TimeElapsed) / float64(time.Second),
+				TPS:          float64(SuccessCount+ErrorCount) * float64(time.Second) / float64(TimeElapsed),
+			})
 		},
 	})
 	testCmd.AddCommand(&cobra.Command{
