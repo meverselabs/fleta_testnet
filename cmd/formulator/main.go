@@ -579,7 +579,6 @@ func main() {
 			}
 
 			start := time.Now()
-			addr := common.MustParseAddress("5CyLcFhpyN")
 			var wg sync.WaitGroup
 			for i := 0; i < userCount; i++ {
 				wg.Add(1)
