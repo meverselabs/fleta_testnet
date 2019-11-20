@@ -586,7 +586,7 @@ func main() {
 					defer wg.Done()
 
 					for q := 0; q < requestPerUser; q++ {
-						GetHeight()
+						GetBalance("5CyLcFhpyN")
 					}
 				}()
 			}
@@ -741,8 +741,8 @@ func (s *Watcher) OnBlockConnected(b *types.Block, events []types.Event, loader 
 	s.blockCh <- b
 }
 
-func GetHeight() (uint32, error) {
-	res, err := DoRequest("http://localhost:48000", "chain.height", []interface{}{})
+func GetBalance(addr string) (uint32, error) {
+	res, err := DoRequest("http://localhost:48000", "vault.balance", []interface{}{addr})
 	if err != nil {
 		return 0, err
 	} else {
