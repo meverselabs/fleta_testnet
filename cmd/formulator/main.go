@@ -515,7 +515,7 @@ func main() {
 
 			Blocks := []*types.Block{}
 			Hashes := []string{}
-			PrevHashes := []string{}
+			HashesPrev := []string{}
 			GenHash, err := st.Hash(0)
 			if err != nil {
 				return nil, err
@@ -545,19 +545,21 @@ func main() {
 				LevelRoots = append(LevelRoots, b.Header.LevelRootHash.String())
 				LevelRootsCalced = append(LevelRootsCalced, LevelRoot.String())
 				Hashes = append(Hashes, encoding.Hash(b.Header).String())
-				PrevHashes = append(PrevHashes, b.Header.PrevHash.String())
+				HashesPrev = append(HashesPrev, b.Header.PrevHash.String())
 			}
 
 			return &struct {
 				TargetHeight     uint32
 				ChainHeight      uint32
 				Hashes           []string
+				HashesPrev       []string
 				LevelRoots       []string
 				LevelRootsCalced []string
 			}{
 				TargetHeight:     Height,
 				ChainHeight:      st.Height(),
 				Hashes:           Hashes,
+				HashesPrev:       HashesPrev,
 				LevelRoots:       LevelRoots,
 				LevelRootsCalced: LevelRootsCalced,
 			}, nil
