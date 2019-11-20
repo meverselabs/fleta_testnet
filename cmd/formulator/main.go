@@ -760,20 +760,16 @@ func (s *Watcher) OnBlockConnected(b *types.Block, events []types.Event, loader 
 	s.blockCh <- b
 }
 
-func GetBalance(addr string) (uint32, error) {
+func GetBalance(addr string) (string, error) {
 	res, err := DoRequest("http://localhost:48000", "vault.balance", []interface{}{addr})
 	if err != nil {
-		return 0, err
+		return "", err
 	} else {
 		bs, err := json.MarshalIndent(res, "", "\t")
 		if err != nil {
-			return 0, err
+			return "", err
 		} else {
-			iv, err := strconv.ParseUint(string(bs), 10, 32)
-			if err != nil {
-				return 0, err
-			}
-			return uint32(iv), nil
+			return string(bs), nil
 		}
 	}
 }
