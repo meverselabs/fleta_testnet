@@ -433,6 +433,7 @@ func main() {
 				ChainHeight:  st.Height(),
 				TxCount:      len(Txs),
 				TimeElapsed:  float64(TimeElapsed) / float64(time.Second),
+				MaxTPS:       MaxTPS,
 				MeanTPS:      float64(len(Txs)) * float64(time.Second) / float64(TimeElapsed),
 			}, nil
 		})
@@ -557,6 +558,36 @@ func main() {
 				LevelRoots:       LevelRoots,
 				LevelRootsCalced: LevelRootsCalced,
 			}, nil
+		})
+		s.Set("readTest", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
+			if arg.Len() != 2 {
+				return nil, apiserver.ErrInvalidArgument
+			}
+			userCount, err := arg.Int(0)
+			if err != nil {
+				return nil, err
+			}
+			requestPerUser, err := arg.Int(0)
+			if err != nil {
+				return nil, err
+			}
+
+			start := time.Now()
+			addr := common.MustParseAddress("5CyLcFhpyN")
+			var wg sync.WaitGroup
+			for i := 0; i < userCount; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+
+					for q := 0; q < requestPerUser; q++ {
+						ctx := cn.NewContext()
+						vp.Balance(ctx, addr)
+					}
+				}()
+			}
+			wg.Wait()
+			return float64(time.Now().Sub(start)) / float64(time.Second), nil
 		})
 	}
 
