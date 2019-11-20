@@ -91,11 +91,75 @@ func main() {
 	}
 
 	rootCmd := &cobra.Command{Use: "cli"}
-	testCmd := &cobra.Command{
-		Use:   "test",
-		Short: "run test",
-	}
-	testCmd.AddCommand(&cobra.Command{
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   "start",
+		Short: "start testnet",
+		Args:  cobra.MinimumNArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			// 서버에 연결
+			var wg sync.WaitGroup
+			for _, v := range Alls {
+				wg.Add(1)
+				go func(info *Info) {
+					defer wg.Done()
+
+					s := NewServer(info.ServerIP, config)
+					c, err := s.Open()
+					if err != nil {
+						panic(err)
+					}
+					info.Conn = c
+				}(v)
+			}
+			wg.Wait()
+
+			//서비스 시작
+			fmt.Print("Start All Service ... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return StartService(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+		},
+	})
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   "stop",
+		Short: "stop testnet",
+		Args:  cobra.MinimumNArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			// 서버에 연결
+			var wg sync.WaitGroup
+			for _, v := range Alls {
+				wg.Add(1)
+				go func(info *Info) {
+					defer wg.Done()
+
+					s := NewServer(info.ServerIP, config)
+					c, err := s.Open()
+					if err != nil {
+						panic(err)
+					}
+					info.Conn = c
+				}(v)
+			}
+			wg.Wait()
+
+			//서비스 정지
+			fmt.Print("Stop All Service ... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return StopService(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+		},
+	})
+	rootCmd.AddCommand(&cobra.Command{
 		Use:   "status",
 		Short: "check status of testnet",
 		Args:  cobra.MinimumNArgs(0),
@@ -187,9 +251,9 @@ func main() {
 			} else {
 				fmt.Println("[Success]")
 			}
-			//가동 높이 진행 확인하고 100블록 진행
-			fmt.Println("Wait until 100 blocks")
 			time.Sleep(5 * time.Second)
+			//가동 높이 진행 확인하고 100블록 진행
+			fmt.Println("Wait until 10 blocks")
 			var TryCount uint32
 			for {
 				Height, err := GetHeight(Formulators[0].ServerIP)
@@ -197,8 +261,8 @@ func main() {
 					fmt.Println("[Fail] - ", err)
 					return
 				}
-				if Height >= 100 {
-					fmt.Println("Reach to 100 blocks [Success]")
+				if Height >= 10 {
+					fmt.Println("Reach to 10 blocks [Success]")
 					break
 				}
 				time.Sleep(1 * time.Second)
@@ -206,14 +270,14 @@ func main() {
 				if TryCount%5 == 0 {
 					fmt.Println("Fetching Height :", Height)
 				}
-				if TryCount > 100 {
-					fmt.Println("Reach to 100 blocks [Fail] - Cannot reach to objective height within 100 seconds")
+				if TryCount > 10 {
+					fmt.Println("Reach to 10 blocks [Fail] - Cannot reach to objective height within 10 seconds")
 					return
 				}
 			}
 			//요약 정보
 			fmt.Println("[Print Summary]")
-			ret, err := GetSummary(Formulators[0].ServerIP, "100")
+			ret, err := GetSummary(Formulators[0].ServerIP, "10")
 			if err != nil {
 				fmt.Println("[Fail] - ", err)
 			}
@@ -230,6 +294,10 @@ func main() {
 			}
 		},
 	})
+	testCmd := &cobra.Command{
+		Use:   "test",
+		Short: "run test",
+	}
 	testCmd.AddCommand(&cobra.Command{
 		Use:   "1 [block]",
 		Short: "create mode test",
@@ -298,9 +366,9 @@ func main() {
 			} else {
 				fmt.Println("[Success]")
 			}
+			time.Sleep(5 * time.Second)
 			//가동 높이 진행 확인하고 지정된 블록 진행
 			fmt.Println("Wait until " + args[0] + " blocks")
-			time.Sleep(5 * time.Second)
 			var TryCount uint32
 			for {
 				Height, err := GetHeight(Formulators[0].ServerIP)
@@ -332,7 +400,142 @@ func main() {
 			fmt.Println(ret)
 		},
 	})
+	testCmd.AddCommand(&cobra.Command{
+		Use:   "2 [user count] [request per user]",
+		Short: "read test",
+		Args:  cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if _, err := strconv.ParseUint(args[0], 10, 32); err != nil {
+				panic(err)
+			}
+			if _, err := strconv.ParseUint(args[1], 10, 64); err != nil {
+				panic(err)
+			}
 
+			// 서버에 연결
+			var wg sync.WaitGroup
+			for _, v := range Alls {
+				wg.Add(1)
+				go func(info *Info) {
+					defer wg.Done()
+
+					s := NewServer(info.ServerIP, config)
+					c, err := s.Open()
+					if err != nil {
+						panic(err)
+					}
+					info.Conn = c
+				}(v)
+			}
+			wg.Wait()
+
+			//서비스 정지
+			fmt.Print("Stop All Service ... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return StopService(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			//데이터 클리어
+			fmt.Print("Clear Data ... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return ClearData(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			//생성 모드 On
+			fmt.Print("Turn On Create Mode ... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return ChangeMode(info, "create", "")
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			//서비스 시작
+			fmt.Print("Start All Service ... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return StartService(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			time.Sleep(5 * time.Second)
+			//가동 높이 진행 확인하고 지정된 블록 진행
+			BlockCount := uint32(100)
+			BlockCountStr := "100"
+			fmt.Println("Wait until " + BlockCountStr + " blocks")
+			var TryCount uint32
+			for {
+				Height, err := GetHeight(Formulators[0].ServerIP)
+				if err != nil {
+					fmt.Println("[Fail] - ", err)
+					return
+				}
+				if Height >= BlockCount {
+					fmt.Println("Reach to " + BlockCountStr + " blocks [Success]")
+					break
+				}
+				time.Sleep(1 * time.Second)
+				TryCount++
+				if TryCount%5 == 0 {
+					fmt.Println("Fetching Height :", Height)
+				}
+				if TryCount > BlockCount {
+					fmt.Println("Reach to " + BlockCountStr + " blocks [Fail] - Cannot reach to objective height within " + BlockCountStr + " seconds")
+					return
+				}
+			}
+			//서비스 정지
+			fmt.Print("Stop All Service ... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return StopService(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			//일반 모드 On
+			fmt.Print("Turn On Normal Mode ... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return ChangeMode(info, "normal", "")
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			//서비스 시작
+			fmt.Print("Start All Service ... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return StartService(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			time.Sleep(5 * time.Second)
+			//요약 정보
+			fmt.Println("[Start Read Test]")
+			ret, err := GetReadTest(Formulators[0].ServerIP, args[0], args[1])
+			if err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			}
+			fmt.Println(ret)
+		},
+	})
 	testCmd.AddCommand(&cobra.Command{
 		Use:   "3 [block] [tx per block]",
 		Short: "insert mode test",
@@ -404,10 +607,10 @@ func main() {
 			} else {
 				fmt.Println("[Success]")
 			}
+			time.Sleep(5 * time.Second)
 			//가동 높이 진행 확인하고 지정된 블록 진행
 			BlockCountStr := args[0]
 			fmt.Println("Wait until " + BlockCountStr + " blocks")
-			time.Sleep(5 * time.Second)
 			var TryCount uint32
 			for {
 				Height, err := GetHeight(Formulators[0].ServerIP)
@@ -501,11 +704,11 @@ func main() {
 			} else {
 				fmt.Println("[Success]")
 			}
+			time.Sleep(5 * time.Second)
 			//가동 높이 진행 확인하고 지정된 블록 진행
 			BlockCount := uint32(10)
 			BlockCountStr := "10"
 			fmt.Println("Wait until " + BlockCountStr + " blocks")
-			time.Sleep(5 * time.Second)
 			var TryCount uint32
 			for {
 				Height, err := GetHeight(Formulators[0].ServerIP)
@@ -609,11 +812,11 @@ func main() {
 			} else {
 				fmt.Println("[Success]")
 			}
+			time.Sleep(5 * time.Second)
 			//가동 높이 진행 확인하고 지정된 블록 진행
 			BlockCount := uint32(10)
 			BlockCountStr := "10"
 			fmt.Println("Wait until " + BlockCountStr + " blocks")
-			time.Sleep(5 * time.Second)
 			var TryCount uint32
 			for {
 				Height, err := GetHeight(Formulators[0].ServerIP)
@@ -748,9 +951,9 @@ func main() {
 			} else {
 				fmt.Println("[Success]")
 			}
+			time.Sleep(5 * time.Second)
 			//가동 높이 진행 확인하고 지정된 블록 진행
 			fmt.Println("Wait until " + args[0] + " blocks")
-			time.Sleep(5 * time.Second)
 			var TryCount uint32
 			for {
 				Height, err := GetHeight(Formulators[0].ServerIP)
@@ -1190,6 +1393,20 @@ func GetCustomText(IP string, ID string) (string, error) {
 
 func GetCheckIntegrity(IP string, Height string) (string, error) {
 	res, err := DoRequest("http://"+IP+":48000", "chain.checkIntegrity", []interface{}{Height})
+	if err != nil {
+		return "", err
+	} else {
+		bs, err := json.MarshalIndent(res, "", "\t")
+		if err != nil {
+			return "", err
+		} else {
+			return string(bs), nil
+		}
+	}
+}
+
+func GetReadTest(IP string, UserCount string, RequestPerSecond string) (string, error) {
+	res, err := DoRequest("http://"+IP+":48000", "chain.readTest", []interface{}{UserCount, RequestPerSecond})
 	if err != nil {
 		return "", err
 	} else {
