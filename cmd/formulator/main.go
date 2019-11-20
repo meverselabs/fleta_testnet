@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fletaio/fleta_testnet/encoding"
+	uuid "github.com/satori/go.uuid"
 
 	"github.com/fletaio/fleta_testnet/cmd/app"
 	"github.com/fletaio/fleta_testnet/cmd/closer"
@@ -26,6 +26,7 @@ import (
 	"github.com/fletaio/fleta_testnet/core/pile"
 	"github.com/fletaio/fleta_testnet/core/txpool"
 	"github.com/fletaio/fleta_testnet/core/types"
+	"github.com/fletaio/fleta_testnet/encoding"
 	"github.com/fletaio/fleta_testnet/pof"
 	"github.com/fletaio/fleta_testnet/process/admin"
 	"github.com/fletaio/fleta_testnet/process/formulator"
@@ -187,7 +188,8 @@ func main() {
 	app := app.NewFletaApp()
 	cn := chain.NewChain(cs, app, st)
 	cn.MustAddProcess(admin.NewAdmin(1))
-	cn.MustAddProcess(vault.NewVault(2))
+	vp := vault.NewVault(2)
+	cn.MustAddProcess(vp)
 	cn.MustAddProcess(formulator.NewFormulator(3))
 	cn.MustAddProcess(gateway.NewGateway(4))
 	cn.MustAddProcess(payment.NewPayment(5))
@@ -296,6 +298,160 @@ func main() {
 	}
 	cm.RemoveAll()
 	cm.Add("formulator", fr)
+
+	if true {
+		s, err := as.JRPC("chain")
+		if err != nil {
+			panic(err)
+		}
+		s.Set("height", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
+			return cn.Provider().Height(), nil
+		})
+		s.Set("transaction", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
+			if arg.Len() != 1 {
+				return nil, apiserver.ErrInvalidArgument
+			}
+			TXID, err := arg.String(0)
+			if err != nil {
+				return nil, apiserver.ErrInvalidArgument
+			}
+			Height, Index, err := types.ParseTransactionID(TXID)
+			if err != nil {
+				return nil, err
+			}
+			if Height > st.Height() {
+				return nil, apiserver.ErrInvalidArgument
+			}
+			b, err := st.Block(Height)
+			if err != nil {
+				return nil, err
+			}
+			if int(Index) >= len(b.Transactions) {
+				return nil, apiserver.ErrInvalidArgument
+			}
+			return b.Transactions[Index], nil
+		})
+		s.Set("summary", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
+			if arg.Len() != 1 {
+				return nil, apiserver.ErrInvalidArgument
+			}
+			Height, err := arg.Uint32(0)
+			if err != nil {
+				return nil, apiserver.ErrInvalidArgument
+			}
+			if Height > st.Height() {
+				return nil, apiserver.ErrInvalidArgument
+			}
+
+			Blocks := []*types.Block{}
+			Txs := []types.Transaction{}
+			var MinTPS float64
+			var MaxTPS float64
+			for h := uint32(1); h <= Height; h++ {
+				b, err := st.Block(h)
+				if err != nil {
+					return nil, err
+				}
+
+				if h == 0 {
+					MinTPS = float64(len(b.Transactions) * 2)
+					MaxTPS = float64(len(b.Transactions) * 2)
+				} else {
+					TPS := float64(len(b.Transactions)) * float64(time.Second) / float64(b.Header.Timestamp-Blocks[len(Blocks)-1].Header.Timestamp)
+					if MinTPS > TPS {
+						MinTPS = TPS
+					}
+					if MaxTPS < TPS {
+						MaxTPS = TPS
+					}
+				}
+
+				Blocks = append(Blocks, b)
+				Txs = append(Txs, b.Transactions...)
+			}
+
+			TimeElapsed := Blocks[len(Blocks)-1].Header.Timestamp - Blocks[0].Header.Timestamp
+			return &struct {
+				TargetHeight uint32
+				ChainHeight  uint32
+				TimeElapsed  uint64
+				TxCount      int
+				MinTPS       float64
+				MaxTPS       float64
+				MeanTPS      float64
+			}{
+				TargetHeight: Height,
+				ChainHeight:  st.Height(),
+				TimeElapsed:  TimeElapsed,
+				TxCount:      len(Txs),
+				MinTPS:       MinTPS,
+				MaxTPS:       MaxTPS,
+				MeanTPS:      float64(len(Txs)) * float64(time.Second) / float64(TimeElapsed),
+			}, nil
+		})
+		s.Set("genCount", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
+			if arg.Len() != 1 {
+				return nil, apiserver.ErrInvalidArgument
+			}
+			arg0, err := arg.String(0)
+			if err != nil {
+				return nil, err
+			}
+			addr, err := common.ParseAddress(arg0)
+			if err != nil {
+				return nil, err
+			}
+
+			var Count int
+			Height := st.Height()
+			for h := uint32(1); h <= Height; h++ {
+				bh, err := st.Header(h)
+				if err != nil {
+					return nil, err
+				}
+				if bh.Generator == addr {
+					Count++
+				}
+			}
+			return Count, nil
+		})
+		s.Set("sendText", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
+			if arg.Len() != 1 {
+				return nil, apiserver.ErrInvalidArgument
+			}
+			text, err := arg.String(0)
+			if err != nil {
+				return nil, err
+			}
+
+			id := uuid.NewV1().String()
+			key, _ := key.NewMemoryKeyFromString("fd1167aad31c104c9fceb5b8a4ffd3e20a272af82176352d3b6ac236d02bafd4")
+			tx := &vault.TextData{
+				Timestamp_: uint64(time.Now().UnixNano()),
+				From_:      common.NewAddress(0, uint16(21000), 0),
+				ID:         id,
+				TextData:   text,
+			}
+			sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
+			if err != nil {
+				return nil, err
+			}
+			if err := fr.AddTx(tx, []common.Signature{sig}); err != nil {
+				return nil, err
+			}
+			return id, nil
+		})
+		s.Set("getText", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
+			if arg.Len() != 1 {
+				return nil, apiserver.ErrInvalidArgument
+			}
+			id, err := arg.String(0)
+			if err != nil {
+				return nil, err
+			}
+			return vp.TextData(cn.NewContext(), id), nil
+		})
+	}
 
 	waitMap := map[common.Address]*chan struct{}{}
 	if false {

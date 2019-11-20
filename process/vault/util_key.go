@@ -15,6 +15,7 @@ var (
 	tagLockedBalanceSum     = []byte{2, 5}
 	tagCollectedFee         = []byte{3, 1}
 	tagPolicy               = []byte{4, 0}
+	tagTextData             = []byte{5, 0}
 )
 
 func toLockedBalanceKey(height uint32, addr common.Address) []byte {
@@ -45,5 +46,12 @@ func toLockedBalanceCountKey(height uint32) []byte {
 	bs := make([]byte, 6)
 	copy(bs, tagLockedBalanceCount)
 	binutil.BigEndian.PutUint32(bs[2:], height)
+	return bs
+}
+
+func toTextDataKey(ID string) []byte {
+	bs := make([]byte, 2+len(ID))
+	copy(bs, tagTextData)
+	copy(bs[2:], []byte(ID))
 	return bs
 }
