@@ -11,12 +11,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fletaio/fleta_testnet/common/amount"
-
 	"github.com/fletaio/fleta_testnet/cmd/app"
 	"github.com/fletaio/fleta_testnet/cmd/closer"
 	"github.com/fletaio/fleta_testnet/cmd/config"
 	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/common/amount"
 	"github.com/fletaio/fleta_testnet/common/key"
 	"github.com/fletaio/fleta_testnet/core/backend"
 	_ "github.com/fletaio/fleta_testnet/core/backend/badger_driver"
@@ -32,6 +31,7 @@ import (
 	"github.com/fletaio/fleta_testnet/process/vault"
 	"github.com/fletaio/fleta_testnet/service/apiserver"
 	"github.com/fletaio/fleta_testnet/service/p2p"
+	"github.com/fletaio/testnet_explorer/explorerservice"
 )
 
 // Config is a configuration for the cmd
@@ -162,6 +162,11 @@ func main() {
 	if cfg.CreateMode {
 		cn.MustAddService(ws)
 	}
+	e, err := explorerservice.NewBlockExplorer("_explorer", cs, cfg.WebPort)
+	if err != nil {
+		panic(err)
+	}
+	cn.MustAddService(e)
 	if err := cn.Init(); err != nil {
 		panic(err)
 	}
