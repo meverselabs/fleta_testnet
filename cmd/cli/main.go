@@ -114,7 +114,7 @@ func main() {
 			wg.Wait()
 
 			//서비스 시작
-			fmt.Print("Start All Service ... ")
+			fmt.Print("Start All Services... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
 				return StartService(info)
 			}); err != nil {
@@ -148,7 +148,7 @@ func main() {
 			wg.Wait()
 
 			//서비스 정지
-			fmt.Print("Stop All Service ... ")
+			fmt.Print("Stop All Services... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
 				return StopService(info)
 			}); err != nil {
@@ -212,7 +212,7 @@ func main() {
 				fmt.Println("[Success]")
 			}
 			//서비스 정지
-			fmt.Print("Stop All Service ... ")
+			fmt.Print("Stop All Services... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
 				return StopService(info)
 			}); err != nil {
@@ -242,7 +242,7 @@ func main() {
 				fmt.Println("[Success]")
 			}
 			//서비스 시작
-			fmt.Print("Start All Service ... ")
+			fmt.Print("Start All Services... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
 				return StartService(info)
 			}); err != nil {
@@ -283,7 +283,7 @@ func main() {
 			}
 			fmt.Println(ret)
 			//서비스 정지
-			fmt.Print("Stop All Service ... ")
+			fmt.Print("Stop All Services... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
 				return StopService(info)
 			}); err != nil {
@@ -327,7 +327,7 @@ func main() {
 			wg.Wait()
 
 			//서비스 정지
-			fmt.Print("Stop All Service ... ")
+			fmt.Print("Stop All Services... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
 				return StopService(info)
 			}); err != nil {
@@ -357,7 +357,7 @@ func main() {
 				fmt.Println("[Success]")
 			}
 			//서비스 시작
-			fmt.Print("Start All Service ... ")
+			fmt.Print("Start All Services... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
 				return StartService(info)
 			}); err != nil {
@@ -430,7 +430,7 @@ func main() {
 			wg.Wait()
 
 			//서비스 정지
-			fmt.Print("Stop All Service ... ")
+			fmt.Print("Stop All Services... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
 				return StopService(info)
 			}); err != nil {
@@ -460,7 +460,7 @@ func main() {
 				fmt.Println("[Success]")
 			}
 			//서비스 시작
-			fmt.Print("Start All Service ... ")
+			fmt.Print("Start All Services... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
 				return StartService(info)
 			}); err != nil {
@@ -471,8 +471,8 @@ func main() {
 			}
 			time.Sleep(5 * time.Second)
 			//가동 높이 진행 확인하고 지정된 블록 진행
-			BlockCount := uint32(100)
-			BlockCountStr := "100"
+			BlockCount := uint32(10)
+			BlockCountStr := strconv.FormatUint(uint64(BlockCount), 10)
 			fmt.Println("Wait until " + BlockCountStr + " blocks")
 			var TryCount uint32
 			for {
@@ -496,7 +496,7 @@ func main() {
 				}
 			}
 			//서비스 정지
-			fmt.Print("Stop All Service ... ")
+			fmt.Print("Stop All Services... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
 				return StopService(info)
 			}); err != nil {
@@ -516,7 +516,7 @@ func main() {
 				fmt.Println("[Success]")
 			}
 			//서비스 시작
-			fmt.Print("Start All Service ... ")
+			fmt.Print("Start All Services... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
 				return StartService(info)
 			}); err != nil {
@@ -568,7 +568,7 @@ func main() {
 			wg.Wait()
 
 			//서비스 정지
-			fmt.Print("Stop All Service ... ")
+			fmt.Print("Stop All Services... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
 				return StopService(info)
 			}); err != nil {
@@ -598,7 +598,7 @@ func main() {
 				fmt.Println("[Success]")
 			}
 			//서비스 시작
-			fmt.Print("Start All Service ... ")
+			fmt.Print("Start All Services... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
 				return StartService(info)
 			}); err != nil {
@@ -665,7 +665,7 @@ func main() {
 			wg.Wait()
 
 			//서비스 정지
-			fmt.Print("Stop All Service ... ")
+			fmt.Print("Stop All Services... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
 				return StopService(info)
 			}); err != nil {
@@ -695,7 +695,7 @@ func main() {
 				fmt.Println("[Success]")
 			}
 			//서비스 시작
-			fmt.Print("Start All Service ... ")
+			fmt.Print("Start All Services... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
 				return StartService(info)
 			}); err != nil {
@@ -707,7 +707,7 @@ func main() {
 			time.Sleep(5 * time.Second)
 			//가동 높이 진행 확인하고 지정된 블록 진행
 			BlockCount := uint32(10)
-			BlockCountStr := "10"
+			BlockCountStr := strconv.FormatUint(uint64(BlockCount), 10)
 			fmt.Println("Wait until " + BlockCountStr + " blocks")
 			var TryCount uint32
 			for {
@@ -773,7 +773,7 @@ func main() {
 			wg.Wait()
 
 			//서비스 정지
-			fmt.Print("Stop All Service ... ")
+			fmt.Print("Stop All Services... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
 				return StopService(info)
 			}); err != nil {
@@ -803,7 +803,7 @@ func main() {
 				fmt.Println("[Success]")
 			}
 			//서비스 시작
-			fmt.Print("Start All Service ... ")
+			fmt.Print("Start All Services... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
 				return StartService(info)
 			}); err != nil {
@@ -815,7 +815,7 @@ func main() {
 			time.Sleep(5 * time.Second)
 			//가동 높이 진행 확인하고 지정된 블록 진행
 			BlockCount := uint32(10)
-			BlockCountStr := "10"
+			BlockCountStr := strconv.FormatUint(uint64(BlockCount), 10)
 			fmt.Println("Wait until " + BlockCountStr + " blocks")
 			var TryCount uint32
 			for {
@@ -912,7 +912,7 @@ func main() {
 			wg.Wait()
 
 			//서비스 정지
-			fmt.Print("Stop All Service ... ")
+			fmt.Print("Stop All Services... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
 				return StopService(info)
 			}); err != nil {
@@ -942,7 +942,7 @@ func main() {
 				fmt.Println("[Success]")
 			}
 			//서비스 시작
-			fmt.Print("Start All Service ... ")
+			fmt.Print("Start All Services... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
 				return StartService(info)
 			}); err != nil {
