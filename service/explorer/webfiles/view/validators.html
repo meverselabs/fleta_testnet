@@ -1,0 +1,114 @@
+<%define "title"%>Validators<%end%>
+<%define "body"%>
+<style>
+.widget-title {
+	text-align: left;
+}
+</style>
+<%template "nav_top" .%>
+<main id="main" class="site-main"  v-root-container>
+	<validator>
+		<div class="kt-container  kt-grid__item kt-grid__item--fluid">
+			<div class="row">
+				<div class="col-xl-4 col-lg-4 order-lg-1 order-xl-1">
+					<div class="kt-portlet kt-portlet--tabs kt-portlet--height-fluid">
+						<div class="kt-portlet__head">
+							<div class="kt-portlet__head-label">
+								<h3 class="kt-portlet__head-title">
+									Summary
+								</h3>
+							</div>
+						</div>
+						<div class="table-responsive kt-portlet__body2">
+							<table class="table">
+								<colgroup><col width="50%"><col width="50%"></colgroup>
+								<tbody>
+									<tr>
+										<th style="border-top:none;">Total Mined By Hyper Self</td>
+										<td style="border-top:none;">{{insert_comma(total.Formulator, 3)}} FLETA</td>
+									</tr>
+									<tr>
+										<th>Total Mined By Delegation</td>
+										<td>{{insert_comma(total.Delegation, 3)}} FLETA</td>
+									</tr>
+									<tr>
+										<th>Total Hyper Commissions</td>
+										<td>{{insert_comma(total.Commission, 3)}} FLETA</td>
+									</tr>
+									<tr>
+										<th>Total Staked</td>
+										<td>{{insert_comma(total.Locked, 3)}} FLETA</td>
+									</tr>
+									<tr>
+										<th>Total Unstaked</td>
+										<td>{{insert_comma(total.Unstaking, 3)}} FLETA</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+				<div class="col-xl-8 col-lg-8 order-lg-1 order-xl-1">
+					<div class="row">
+						<div class="col-xl-6 col-lg-6 order-lg-1 order-xl-1 card-col" v-for="item in validator">
+							<!--begin:: Widgets/Profit Share-->
+							<div class="kt-portlet kt-portlet--height-fluid">
+								<div class="kt-widget14">
+									<div class="kt-widget14__header">
+										<a :href="'/validator/'+item.Addr"><h3 class="kt-widget14__title">{{item.Name}}</h3></a>
+										<span class="kt-widget14__desc">{{item.Addr}}</span>
+									</div>
+									<div class="kt-widget14__header">
+										<h3 class="kt-widget14__title">Staking Share</h3>
+										<span class="kt-widget14__desc">{{insert_comma(item.Share, 2)}}%</span>
+									</div>
+								</div>
+							</div>
+							<!--end:: Widgets/Profit Share-->
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<script type="vue">
+			data: function() {
+				var obj = {}
+				var validator = <% marshal .hrs%>;
+				if (validator.length > 0) {
+					obj.total = {
+						Commission : this.to_big("0"),
+						Delegation : this.to_big("0"),
+						Formulator : this.to_big("0"),
+						Locked : this.to_big("0"),
+						Unstaking : this.to_big("0"),
+					}
+					for ( var i = 0 ; i < validator.length ; i++ ) {
+						obj.total.Commission = obj.total.Commission.add(this.to_big(validator[i].Commission))
+						obj.total.Delegation = obj.total.Delegation.add(this.to_big(validator[i].Delegation))
+						obj.total.Formulator = obj.total.Formulator.add(this.to_big(validator[i].Formulator))
+						obj.total.Locked = obj.total.Locked.add(this.to_big(validator[i].Locked))
+						obj.total.Unstaking = obj.total.Unstaking.add(this.to_big(validator[i].Unstaking))
+					}
+					for ( var i = 0 ; i < validator.length ; i++ ) {
+						var b = this.to_big(validator[i].Locked).multiply(this.to_big("100"))
+						validator[i].Share = this.to_coin(b.divide(obj.total.Locked))
+					}
+					obj.total.Commission = this.to_coin(obj.total.Commission)
+					obj.total.Delegation = this.to_coin(obj.total.Delegation)
+					obj.total.Formulator = this.to_coin(obj.total.Formulator)
+					obj.total.Locked = this.to_coin(obj.total.Locked)
+					obj.total.Unstaking = this.to_coin(obj.total.Unstaking)
+				}
+				obj.validator = validator;
+				console.log(obj)
+				return obj;
+			},
+			mounted: function() {
+			},
+			methods: {
+			}
+		</script>
+	</validator>
+
+</main><!-- .site-main -->
+<%end%>

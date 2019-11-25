@@ -30,8 +30,8 @@ import (
 	"github.com/fletaio/fleta_testnet/process/user"
 	"github.com/fletaio/fleta_testnet/process/visit"
 	"github.com/fletaio/fleta_testnet/service/apiserver"
+	"github.com/fletaio/fleta_testnet/service/explorer"
 	"github.com/fletaio/fleta_testnet/service/p2p"
-	"github.com/fletaio/testnet_explorer/explorerservice"
 )
 
 // Config is a configuration for the cmd
@@ -164,10 +164,9 @@ func main() {
 	if cfg.CreateMode {
 		cn.MustAddService(ws)
 	}
-	e, err := explorerservice.NewBlockExplorer("_explorer", cs, cfg.WebPort)
-	if err != nil {
-		panic(err)
-	}
+	e := explorer.NewExplorer(ex, "./_explorer", cfg.WebPortExplorer)
+	cn.MustAddService(e)
+	e.SetConsensus(cs)
 	cn.MustAddService(e)
 	if err := cn.Init(); err != nil {
 		panic(err)

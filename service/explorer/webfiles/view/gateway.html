@@ -1,0 +1,259 @@
+<%define "title"%>Gateway<%end%>
+<%define "body"%>
+<style>
+.cards {
+	margin-right: -5px;
+	margin-left: -5px;
+}
+.cards .card-col {
+	padding: 0 5px;
+}
+.cards .kt-portlet {
+	margin-bottom: 10px;
+}
+.cards .kt-portlet .kt-widget14__header:last-child {
+	padding-bottom:0;
+	margin-bottom:0;
+}
+.kt-portlet__body {
+	/* height: 636px; */
+	height: 690px;
+}
+.kt-widget2__info {
+	padding-left: 32px;
+}
+.kt-widget2__username {
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	overflow: hidden;
+	width: 320px;
+}
+.kt-widget2__confirm {
+    position: absolute;
+    right: 16px;
+}
+.kt-portlet__body2 {
+	height: 205px;
+	padding: 8px;
+	font-size: 14px;
+}
+.table-responsive th::after {
+    content: '';
+    display: block;
+    border-right: 1px solid #ebedf2;
+    float: right;
+    height: 25px;
+}
+</style>
+<%template "nav_top" .%>
+<div v-root-container>
+<gateway>
+<div class="kt-container  kt-grid__item kt-grid__item--fluid">
+	<!--Begin::Dashboard 1-->
+	<!--Begin::Row-->
+	<div class="row">
+		<div class="col-xl-4 col-lg-4 order-lg-1 order-xl-1">
+			<div class="kt-portlet kt-portlet--tabs kt-portlet--height-fluid">
+				<div class="kt-portlet__head">
+					<div class="kt-portlet__head-label">
+						<h3 class="kt-portlet__head-title">
+							Chain Record
+						</h3>
+					</div>
+				</div>
+				<div class="table-responsive kt-portlet__body2">
+					<table class="table">
+						<colgroup><col width="50%"><col width="50%"></colgroup>
+						<tbody>
+							<tr>
+								<th style="border-top:none;">Latest FLETA Block</td>
+								<td style="border-top:none;">{{summary.height}}</td>
+							</tr>
+							<tr>
+								<th>Mainnet Txs</td>
+								<td>{{summary.tx_count}}</td>
+							</tr>
+							<tr>
+								<th>Latest Eth Block</td>
+								<td>{{summary.eth_height}}</td>
+							</tr>
+							<tr>
+								<th>ERC20 Txs</td>
+								<td>{{summary.erc20_tx_count}}</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+			<div class="kt-portlet kt-portlet--tabs kt-portlet--height-fluid">
+				<div class="kt-portlet__head">
+					<div class="kt-portlet__head-label">
+						<h3 class="kt-portlet__head-title">
+							Gateway Record
+						</h3>
+					</div>
+				</div>
+				<div class="table-responsive kt-portlet__body2">
+					<table class="table">
+						<colgroup><col width="50%"><col width="50%"></colgroup>
+						<tbody>
+							<tr>
+								<th style="border-top:none;"><span style="color:#d62728;">ERC20</span> -> <span style="color:#3366cc;">FLETA</span></td>
+								<td style="border-top:none;">{{insert_comma(summary.token_in_amount)}} FLETA</td>
+							</tr>
+							<tr>
+								<th>TokenIn Count</td>
+								<td>{{summary.token_in_count}}</td>
+							</tr>
+							<tr>
+								<th><span style="color:#3366cc;">FLETA</span> -> <span style="color:#d62728;">ERC20</span></td>
+								<td>{{insert_comma(summary.token_out_amount)}} FLETA</td>
+							</tr>
+							<tr>
+								<th>TokenOut Count</td>
+								<td>{{summary.token_out_count}}</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+			<div class="kt-portlet kt-portlet--tabs kt-portlet--height-fluid">
+				<div class="kt-portlet__head">
+					<div class="kt-portlet__head-label">
+						<h3 class="kt-portlet__head-title">
+							Balance
+						</h3>
+					</div>
+				</div>
+				<div class="table-responsive kt-portlet__body2" style="height: 120px;">
+					<colgroup><col width="50%"><col width="50%"></colgroup>
+					<table class="table">
+						<tbody>
+							<tr>
+								<th style="border-top:none;">FLTEA Gateway</td>
+								<td style="border-top:none;">{{insert_comma(summary.gateway_coin)}} FLETA</td>
+							</tr>
+							<tr>
+								<th>ERC20 Gateway</td>
+								<td>{{insert_comma(summary.gateway_erc20)}} FLETA</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+		</div>
+		<div class="col-lg-4 col-xl-4 order-lg-1 order-xl-1">
+			<!--begin:: Widgets/Tasks -->
+			<div class="kt-portlet kt-portlet--tabs kt-portlet--height-fluid">
+				<div class="kt-portlet__head">
+					<div class="kt-portlet__head-label">
+						<h3 class="kt-portlet__head-title">
+							<span style="color:#d62728;">ERC20</span> -> <span style="color:#3366cc;">FLETA</span>
+						</h3>
+					</div>
+				</div>
+				<div class="kt-portlet__body">
+					<div class="kt-widget2">
+						<div class="kt-widget2__item" v-bind:class="item.txid.length > 0 ? 'kt-widget2__item--mainnet' : 'kt-widget2__item--working'"  v-for="item in token_ins">
+							<div class="kt-widget2__info">
+								<!--
+								<a v-bind:href="'/account/'+item.address" target="_blank" class="kt-widget2__title" v-if="item.txid.length > 0">
+								-->
+								<p class="kt-widget2__title" v-if="item.txid.length > 0">
+									{{item.address}}<br/>
+								</p>
+								<!--
+								<a v-bind:href="'/account/'+item.address" target="_blank" class="kt-widget2__title" v-else>
+								-->
+								<p class="kt-widget2__title" v-else>
+									{{item.address}}<br/>
+								</p>
+								<span class="kt-widget2__confirm" v-if="summary.eth_height < item.erc20_block_number + 1 + 60">
+									{{summary.eth_height - item.erc20_block_number + 1 <= 60 ? summary.eth_height - item.erc20_block_number + 1 : 60}} / 60
+								 </span>
+								<span>{{item.amount}} FLETA</span>
+								<a v-bind:href="'https://etherscan.io/tx/0x'+item.erc20_tx_hash" target="_blank" class="kt-widget2__username">
+									0x{{item.erc20_tx_hash}}
+								</a>							 	 
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<!--end:: Widgets/Tasks -->
+		</div>
+		<div class="col-lg-4 col-xl-4 order-lg-1 order-xl-1">
+			<!--begin:: Widgets/Tasks -->
+			<div class="kt-portlet kt-portlet--tabs kt-portlet--height-fluid">
+				<div class="kt-portlet__head">
+					<div class="kt-portlet__head-label">
+						<h3 class="kt-portlet__head-title">
+							<span style="color:#3366cc;">FLETA</span> -> <span style="color:#d62728;">ERC20</span>
+						</h3>
+					</div>
+				</div>
+				<div class="kt-portlet__body">
+					<div class="kt-widget2">
+						<div class="kt-widget2__item" v-bind:class="item.erc20_tx_hash.length > 0 ? 'kt-widget2__item--erc20' : 'kt-widget2__item--working'"  v-for="item in token_outs">
+							<div class="kt-widget2__info">
+								<!--
+								<a v-bind:href="'/account/'+item.address" target="_blank" class="kt-widget2__title">
+								-->
+								<p class="kt-widget2__title">
+									{{item.address}}<br/>
+								</p>
+								<span>{{item.amount}} FLETA</span>
+								<a v-bind:href="'https://etherscan.io/tx/0x'+item.erc20_tx_hash" target="_blank" class="kt-widget2__username" v-if="item.erc20_tx_hash.length > 0">
+									0x{{item.erc20_tx_hash}}
+								</a>
+								<span class="kt-widget2__username" v-else>
+									TokenOut Pending
+								</span>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<!--end:: Widgets/Tasks -->
+		</div>
+	</div>
+	<!--End::Row-->
+	<!--End::Dashboard 1-->
+</div>
+<script type="vue">
+	data: function() {
+		var obj = {
+			summary: <% marshal .summary %>,
+			token_ins: <% marshal .token_ins %>,
+			token_outs: <% marshal .token_outs %>,
+		};
+		return obj;
+	},
+	mounted: function() {
+		var _this = this;
+		var counter = 0;
+		setInterval(function() {
+			_this.summary.height++;
+			counter++;
+			if(counter >= 6) {
+				_this.load_data();
+				counter = 0;
+			}
+		}, 500);
+	},
+	methods: {
+		load_data: function() {
+			this.$http.get("/api/datas/gateway")
+			.then(function(res) {
+				this.summary = res.body.summary;
+				this.token_ins = res.body.token_ins;
+				this.token_outs = res.body.token_outs;
+			}, function(err) {
+				// ignore
+			});
+		},
+	}
+</script>
+</gateway>
+</div>
+<%end%>

@@ -1,0 +1,131 @@
+<%define "title"%>Block<%end%>
+<%define "body"%>
+<style>
+.flip-list-move {
+    transition: transform 0.5s;
+}
+.kt-portlet__body {
+	height: 636px;
+}
+.kt-portlet__body2 {
+	height: 278px;
+}
+</style>
+<%template "nav_top" .%>
+<main id="main" class="site-main"  v-root-container>
+<formualtor>
+<div class="kt-container  kt-grid__item kt-grid__item--fluid">
+	<div class="row">
+		<div class="col-lg-4 col-xl-4 order-lg-1 order-xl-1">
+			<!--begin:: Widgets/Tasks -->
+			<div class="kt-portlet kt-portlet--tabs kt-portlet--height-fluid">
+				<div class="kt-portlet__head">
+					<div class="kt-portlet__head-label">
+						<h3 class="kt-portlet__head-title">Header</h3>
+					</div>
+				</div>
+				<div class="kt-portlet__body">
+					<div class="kt-widget2">
+						<div class="kt-widget2__item kt-widget2__item--none"  v-for="value, key in header">
+							<div class="kt-widget2__info">
+								<a href="#" class="kt-widget2__title">
+									{{key}}
+								</a>
+								<a href="#" class="kt-widget2__username">
+									{{dataConvert(key, value)}}
+								</a>							 	 
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<!--end:: Widgets/Tasks -->
+		</div>
+		<div class="col-lg-4 col-xl-4 order-lg-1 order-xl-1">
+			<!--begin:: Widgets/Tasks -->
+			<div class="kt-portlet kt-portlet--tabs kt-portlet--height-fluid">
+				<div class="kt-portlet__head">
+					<div class="kt-portlet__head-label">
+						<h3 class="kt-portlet__head-title">Formulator</h3>
+					</div>
+				</div>
+				<div class="kt-portlet__body">
+					<div class="kt-widget2">
+						<div class="kt-widget2__item kt-widget2__item--none"  v-for="value, key in formulator">
+							<div class="kt-widget2__info">
+								<a href="#" class="kt-widget2__title">
+									{{key}}
+								</a>							 
+								<a href="#" class="kt-widget2__username">
+									{{dataConvert(key, value)}}
+								</a>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<!--end:: Widgets/Tasks -->
+		</div>
+		<div class="col-lg-4 col-xl-4 order-lg-1 order-xl-1">
+			<!--begin:: Widgets/Tasks -->
+			<div class="kt-portlet kt-portlet--tabs kt-portlet--height-fluid">
+				<div class="kt-portlet__head">
+					<div class="kt-portlet__head-label">
+						<h3 class="kt-portlet__head-title">Transactions</h3>
+					</div>
+				</div>
+				<div class="kt-portlet__body">
+					<div class="kt-widget2">
+						<div class="kt-widget2__item kt-widget2__item--vaultCreateAccount"  v-for="item in txs">
+							<div class="kt-widget2__checkbox">
+								<label class="kt-checkbox kt-checkbox--solid kt-checkbox--single">
+								<input type="checkbox">
+								<span></span>
+								</label>
+							</div>
+
+							<div class="kt-widget2__info">
+								<a href="#" class="kt-widget2__title">
+									Make Widgets Development. Estudiat Communy Elit
+								</a>							 
+								<a href="#" class="kt-widget2__username">
+									By Aziko
+								</a>							 	 
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<!--end:: Widgets/Tasks -->
+		</div>
+	</div>
+</div>
+<script type="vue">
+data: function() {
+	var obj = {
+		header : <% marshal .header %>,
+		formulator :  <% marshal .formulator %>,
+		txs :  <% marshal .txs %>,
+	};
+	return obj;
+},
+mounted: function() {
+},
+methods: {
+	dataConvert : function (key, value) {
+		if ((key+"").toLowerCase() == "timestamp") {
+			var date = new Date(value/1000000);
+			return date.toString()
+		}
+		return value
+	},
+	add : function () {
+		this.formulators.push({addr:"test"+this.formulators.length, name:"test!"+this.formulators.length})
+	}
+}
+</script>
+</formualtor>
+
+
+</main><!-- .site-main -->
+<%end%>

@@ -1,0 +1,81 @@
+<%define "title"%>Transactions<%end%>
+<%define "body"%>
+<style>
+	.widget-title {
+		text-align: left;
+	}
+</style>
+<%template "nav_top" .%>
+<div  v-root-container>
+	<formualtor>
+		<div class="kt-container  kt-grid__item kt-grid__item--fluid">
+			<!--begin::Portlet-->
+			<div class="kt-portlet kt-portlet--mobile">
+					<div class="kt-portlet__body kt-portlet__body--fit">
+						<!--begin: Datatable -->
+						<div class="kt-datatable kt-datatable--default kt-datatable--brand kt-datatable--scroll kt-datatable--loaded"
+							id="base_column_width" style="">
+							<table class="kt-datatable__table" style="display: block;">
+								<thead class="kt-datatable__head">
+									<tr class="kt-datatable__row" style="left: 0px;">
+										<th data-field="RecordID" class="kt-datatable__cell--center kt-datatable__cell kt-datatable__cell--sort kt-datatable__cell--sorted" data-sort="asc"><span style="width: 30px;">#<i class="flaticon2-arrow-up"></i></span></th>
+										<th data-field="OrderID" class="kt-datatable__cell kt-datatable__cell--sort"><span style="width: 181px;">Order ID</span></th>
+										<th data-field="Country" class="kt-datatable__cell kt-datatable__cell--sort"><span style="width: 181px;">Country</span></th>
+										<th data-field="Status" class="kt-datatable__cell kt-datatable__cell--sort"><span style="width: 181px;">Status</span></th>
+										<th data-field="Type" data-autohide-disabled="false" class="kt-datatable__cell kt-datatable__cell--sort"><span style="width: 181px;">Type</span></th>
+									</tr>
+								</thead>
+								<tbody class="kt-datatable__body ps">
+									<tr class="kt-datatable__row" style="left: 0px;" v-for="(item, key) in datas">
+										<td class="kt-datatable__cell--sorted kt-datatable__cell--center kt-datatable__cell" data-field="RecordID"><span style="width: 30px;"><a :href="'/tx/'+item.addr">{{key}}</a></span></td>
+										<td data-field="OrderID" class="kt-datatable__cell"><span style="width: 181px;">{{item.name}}</span> </td>
+										<td data-field="Country" class="kt-datatable__cell"><span style="width: 181px;">China CN</span></td>
+										<td data-field="Status" class="kt-datatable__cell"><span style="width: 181px;"><span class="kt-badge  kt-badge--primary kt-badge--inline kt-badge--pill">Canceled</span></span></td>
+										<td data-field="Type" data-autohide-disabled="false" class="kt-datatable__cell"><span style="width: 181px;"><span class="kt-badge kt-badge--primary kt-badge--dot"></span>&nbsp;<span class="kt-font-bold kt-font-primary">Retail</span></span></td>
+									</tr>
+									<div class="ps__rail-x" style="left: 0px; bottom: 0px;">
+										<div class="ps__thumb-x" tabindex="0" style="left: 0px; width: 0px;"></div>
+									</div>
+									<div class="ps__rail-y" style="top: 0px; right: 0px;">
+										<div class="ps__thumb-y" tabindex="0" style="top: 0px; height: 0px;"></div>
+									</div>
+								</tbody>
+							</table>
+							<div class="kt-datatable__pager kt-datatable--paging-loaded">
+								<ul class="kt-datatable__pager-nav">
+									<li><a title="First" class="kt-datatable__pager-link kt-datatable__pager-link--first kt-datatable__pager-link--disabled" data-page="1" disabled="disabled"><i class="flaticon2-fast-back"></i></a></li>
+									<li><a title="Previous" class="kt-datatable__pager-link kt-datatable__pager-link--prev kt-datatable__pager-link--disabled" data-page="1" disabled="disabled"><i class="flaticon2-back"></i></a></li>
+									<li style=""></li>
+									<li style="display: none;"><input type="text" class="kt-pager-input form-control" title="Page number"></li>
+									<li><a class="kt-datatable__pager-link kt-datatable__pager-link-number kt-datatable__pager-link--active"data-page="1" title="1">1</a></li>
+									<li><a class="kt-datatable__pager-link kt-datatable__pager-link-number" data-page="2" title="2">2</a></li>
+									<li><a class="kt-datatable__pager-link kt-datatable__pager-link-number" data-page="3" title="3">3</a></li>
+									<li><a class="kt-datatable__pager-link kt-datatable__pager-link-number" data-page="4" title="4">4</a></li>
+									<li><a class="kt-datatable__pager-link kt-datatable__pager-link-number" data-page="5" title="5">5</a>
+									<li></li>
+									<li><a title="Next" class="kt-datatable__pager-link kt-datatable__pager-link--next" data-page="2"><i class="flaticon2-next"></i></a></li>
+									<li><a title="Last" class="kt-datatable__pager-link kt-datatable__pager-link--last" data-page="35"><i class="flaticon2-fast-next"></i></a></li>
+								</ul>
+							</div>
+						</div>
+						<!--end: Datatable -->
+					</div>
+			</div>
+			<!--end::Portlet-->
+		</div>
+		<script type="vue">
+			data: function() {
+				var obj = {
+					datas : [{addr:"addrs", name:"WBL"},{addr:"addrs", name:"WBL"},{addr:"addrs", name:"WBL"},{addr:"addrs", name:"WBL"},{addr:"addrs", name:"WBL"},{addr:"addrs", name:"WBL"}],
+					formulators : [{addr:"addrs", name:"WBL"},{addr:"addrs", name:"WBL"},{addr:"addrs", name:"WBL"},{addr:"addrs", name:"WBL"},{addr:"addrs", name:"WBL"},{addr:"addrs", name:"WBL"}]
+				};
+				return obj;
+			},
+			mounted: function() {
+			},
+			methods: {
+			}
+		</script>
+	</formualtor>
+</div>
+<%end%>
