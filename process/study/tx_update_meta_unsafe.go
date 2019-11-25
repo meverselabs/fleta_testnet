@@ -6,7 +6,6 @@ import (
 
 	"github.com/fletaio/fleta_testnet/common"
 	"github.com/fletaio/fleta_testnet/core/types"
-	"github.com/fletaio/fleta_testnet/process/admin"
 )
 
 // UpdateMetaUnsafe is a UpdateMetaUnsafe
@@ -28,12 +27,6 @@ func (tx *UpdateMetaUnsafe) From() common.Address {
 
 // Validate validates signatures of the transaction
 func (tx *UpdateMetaUnsafe) Validate(p types.Process, loader types.LoaderWrapper, signers []common.PublicHash) error {
-	sp := p.(*Study)
-
-	if tx.From() != sp.admin.AdminAddress(loader, p.Name()) {
-		return admin.ErrUnauthorizedTransaction
-	}
-
 	fromAcc, err := loader.Account(tx.From())
 	if err != nil {
 		return err

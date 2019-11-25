@@ -6,7 +6,6 @@ import (
 
 	"github.com/fletaio/fleta_testnet/common"
 	"github.com/fletaio/fleta_testnet/core/types"
-	"github.com/fletaio/fleta_testnet/process/admin"
 )
 
 // UpdateMeta is a UpdateMeta
@@ -34,11 +33,6 @@ func (tx *UpdateMeta) From() common.Address {
 
 // Validate validates signatures of the transaction
 func (tx *UpdateMeta) Validate(p types.Process, loader types.LoaderWrapper, signers []common.PublicHash) error {
-	sp := p.(*Study)
-
-	if tx.From() != sp.admin.AdminAddress(loader, p.Name()) {
-		return admin.ErrUnauthorizedTransaction
-	}
 	if tx.Seq() <= loader.Seq(tx.From()) {
 		return types.ErrInvalidSequence
 	}
