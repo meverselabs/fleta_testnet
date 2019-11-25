@@ -44,6 +44,7 @@ type Config struct {
 	WebPort      int
 	StoreRoot    string
 	CreateMode   bool
+	CustomText   string
 }
 
 func main() {
@@ -252,8 +253,8 @@ func main() {
 							From_:      Addr,
 							Forms: []*study.Form{
 								&study.Form{
-									ID:       "form-id",
-									Name:     "form-name",
+									ID:       "form-" + strconv.FormatUint(Seq, 10),
+									Name:     "CustomText : " + CustomText,
 									Type:     "form-type",
 									Priority: 1,
 									Extra:    types.NewStringStringMap(),
@@ -288,8 +289,8 @@ func main() {
 								From_:      Addr,
 								Forms: []*study.Form{
 									&study.Form{
-										ID:       "form-id",
-										Name:     "form-name",
+										ID:       "form-" + strconv.FormatUint(Seq, 10),
+										Name:     "CustomText : " + CustomText,
 										Type:     "form-type",
 										Priority: 1,
 										Extra:    types.NewStringStringMap(),
@@ -304,14 +305,15 @@ func main() {
 							if err := nd.AddTx(tx, []common.Signature{sig}); err != nil {
 							}
 						case <-*pCh:
+							NextSeq := st.Seq(Addr) + 1
 							tx := &study.UpdateMeta{
 								Timestamp_: uint64(time.Now().UnixNano()),
-								Seq_:       Seq,
+								Seq_:       NextSeq,
 								From_:      Addr,
 								Forms: []*study.Form{
 									&study.Form{
-										ID:       "form-id",
-										Name:     "form-name",
+										ID:       "form-" + strconv.FormatUint(NextSeq, 10),
+										Name:     "CustomText : " + CustomText,
 										Type:     "form-type",
 										Priority: 1,
 										Extra:    types.NewStringStringMap(),

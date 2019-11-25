@@ -260,7 +260,7 @@ func main() {
 			//생성 모드 On
 			fmt.Print("Turn On Create Mode ... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
-				return ChangeMode(info, "create", "")
+				return ChangeMode(info, "create", "", "")
 			}); err != nil {
 				fmt.Println("[Fail] - ", err)
 				return
@@ -325,7 +325,7 @@ func main() {
 		Short: "run test",
 	}
 	testCmd.AddCommand(&cobra.Command{
-		Use:   "1 [block]",
+		Use:   "1 [block] [message]",
 		Short: "create mode test",
 		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -375,7 +375,7 @@ func main() {
 			//생성 모드 On
 			fmt.Print("Turn On Create Mode ... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
-				return ChangeMode(info, "create", "")
+				return ChangeMode(info, "create", "", args[1])
 			}); err != nil {
 				fmt.Println("[Fail] - ", err)
 				return
@@ -486,7 +486,7 @@ func main() {
 			//생성 모드 On
 			fmt.Print("Turn On Create Mode ... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
-				return ChangeMode(info, "create", "")
+				return ChangeMode(info, "create", "", "")
 			}); err != nil {
 				fmt.Println("[Fail] - ", err)
 				return
@@ -542,7 +542,7 @@ func main() {
 			//일반 모드 On
 			fmt.Print("Turn On Normal Mode ... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
-				return ChangeMode(info, "normal", "")
+				return ChangeMode(info, "normal", "", "")
 			}); err != nil {
 				fmt.Println("[Fail] - ", err)
 				return
@@ -622,7 +622,7 @@ func main() {
 			//생성 모드 On
 			fmt.Print("Turn On Create Mode ... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
-				return ChangeMode(info, "create", "")
+				return ChangeMode(info, "create", "", "")
 			}); err != nil {
 				fmt.Println("[Fail] - ", err)
 				return
@@ -678,7 +678,7 @@ func main() {
 			//일반 모드 On
 			fmt.Print("Turn On Normal Mode ... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
-				return ChangeMode(info, "normal", "")
+				return ChangeMode(info, "normal", "", "")
 			}); err != nil {
 				fmt.Println("[Fail] - ", err)
 				return
@@ -798,7 +798,7 @@ func main() {
 			//생성 모드 On
 			fmt.Print("Turn On Insert Mode ... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
-				return ChangeMode(info, "insert", args[1])
+				return ChangeMode(info, "insert", args[1], "")
 			}); err != nil {
 				fmt.Println("[Fail] - ", err)
 				return
@@ -895,7 +895,7 @@ func main() {
 			//일반 모드 On
 			fmt.Print("Turn On Normal Mode ... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
-				return ChangeMode(info, "normal", "")
+				return ChangeMode(info, "normal", "", "")
 			}); err != nil {
 				fmt.Println("[Fail] - ", err)
 				return
@@ -1011,7 +1011,7 @@ func main() {
 			//일반 모드 On
 			fmt.Print("Turn On Normal Mode ... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
-				return ChangeMode(info, "normal", "")
+				return ChangeMode(info, "normal", "", "")
 			}); err != nil {
 				fmt.Println("[Fail] - ", err)
 				return
@@ -1144,7 +1144,7 @@ func main() {
 			//일반 모드 On
 			fmt.Print("Turn On Normal Mode ... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
-				return ChangeMode(info, "normal", "")
+				return ChangeMode(info, "normal", "", "")
 			}); err != nil {
 				fmt.Println("[Fail] - ", err)
 				return
@@ -1268,7 +1268,7 @@ func main() {
 			//일반 모드 On
 			fmt.Print("Turn On Normal Mode ... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
-				return ChangeMode(info, "normal", "")
+				return ChangeMode(info, "normal", "", "")
 			}); err != nil {
 				fmt.Println("[Fail] - ", err)
 				return
@@ -1398,7 +1398,7 @@ func main() {
 			//생성 모드 On
 			fmt.Print("Turn On Create Mode ... ")
 			if err := ExecuteServer(config, Alls, func(info *Info) error {
-				return ChangeMode(info, "create", "")
+				return ChangeMode(info, "create", "", "")
 			}); err != nil {
 				fmt.Println("[Fail] - ", err)
 				return
@@ -1521,7 +1521,7 @@ func StartService(info *Info) error {
 	return nil
 }
 
-func ChangeMode(info *Info, mode string, InsertTxCount string) error {
+func ChangeMode(info *Info, mode string, InsertTxCount string, CustomText string) error {
 	switch mode {
 	case "create":
 		cmds := []string{
@@ -1593,6 +1593,7 @@ RLogHost = ""
 RLogPath = ""
 UseRLog = false
 CreateMode = true
+CustomText = "` + CustomText + `"
 
 [SeedNodeMap]
 3yTFnJJqx3wCiK2Edk9f9JwdvdkC4DP4T1y8xYztMkf = "seednode1.fletatest.net:41000"

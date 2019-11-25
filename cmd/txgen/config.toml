@@ -10,6 +10,7 @@ APIPort = 48000
 WebPort = 8080
 StoreRoot = "./ndata"
 CreateMode = false
+CustomText = ""
 
 [SeedNodeMap]
 3yTFnJJqx3wCiK2Edk9f9JwdvdkC4DP4T1y8xYztMkf = "80.240.29.147:41000"
