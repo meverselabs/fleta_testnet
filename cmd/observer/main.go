@@ -23,10 +23,11 @@ import (
 	"github.com/fletaio/fleta_testnet/core/chain"
 	"github.com/fletaio/fleta_testnet/pof"
 	"github.com/fletaio/fleta_testnet/process/admin"
-	"github.com/fletaio/fleta_testnet/process/formulator"
-	"github.com/fletaio/fleta_testnet/process/gateway"
-	"github.com/fletaio/fleta_testnet/process/payment"
-	"github.com/fletaio/fleta_testnet/process/vault"
+	"github.com/fletaio/fleta_testnet/process/query"
+	"github.com/fletaio/fleta_testnet/process/study"
+	"github.com/fletaio/fleta_testnet/process/subject"
+	"github.com/fletaio/fleta_testnet/process/user"
+	"github.com/fletaio/fleta_testnet/process/visit"
 	"github.com/fletaio/fleta_testnet/service/apiserver"
 )
 
@@ -133,13 +134,14 @@ func main() {
 	}
 
 	cs := pof.NewConsensus(MaxBlocksPerFormulator, ObserverKeys)
-	app := app.NewFletaApp()
+	app := app.NewECRFApp()
 	cn := chain.NewChain(cs, app, st)
 	cn.MustAddProcess(admin.NewAdmin(1))
-	cn.MustAddProcess(vault.NewVault(2))
-	cn.MustAddProcess(formulator.NewFormulator(3))
-	cn.MustAddProcess(gateway.NewGateway(4))
-	cn.MustAddProcess(payment.NewPayment(5))
+	cn.MustAddProcess(study.NewStudy(2))
+	cn.MustAddProcess(user.NewUser(3))
+	cn.MustAddProcess(subject.NewSubject(4))
+	cn.MustAddProcess(visit.NewVisit(5))
+	cn.MustAddProcess(query.NewQuery(6))
 	as := apiserver.NewAPIServer()
 	cn.MustAddService(as)
 	if err := cn.Init(); err != nil {

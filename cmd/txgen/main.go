@@ -15,7 +15,6 @@ import (
 	"github.com/fletaio/fleta_testnet/cmd/closer"
 	"github.com/fletaio/fleta_testnet/cmd/config"
 	"github.com/fletaio/fleta_testnet/common"
-	"github.com/fletaio/fleta_testnet/common/amount"
 	"github.com/fletaio/fleta_testnet/common/key"
 	"github.com/fletaio/fleta_testnet/core/backend"
 	_ "github.com/fletaio/fleta_testnet/core/backend/badger_driver"
@@ -25,10 +24,11 @@ import (
 	"github.com/fletaio/fleta_testnet/core/types"
 	"github.com/fletaio/fleta_testnet/pof"
 	"github.com/fletaio/fleta_testnet/process/admin"
-	"github.com/fletaio/fleta_testnet/process/formulator"
-	"github.com/fletaio/fleta_testnet/process/gateway"
-	"github.com/fletaio/fleta_testnet/process/payment"
-	"github.com/fletaio/fleta_testnet/process/vault"
+	"github.com/fletaio/fleta_testnet/process/query"
+	"github.com/fletaio/fleta_testnet/process/study"
+	"github.com/fletaio/fleta_testnet/process/subject"
+	"github.com/fletaio/fleta_testnet/process/user"
+	"github.com/fletaio/fleta_testnet/process/visit"
 	"github.com/fletaio/fleta_testnet/service/apiserver"
 	"github.com/fletaio/fleta_testnet/service/p2p"
 	"github.com/fletaio/testnet_explorer/explorerservice"
@@ -150,13 +150,14 @@ func main() {
 	}
 
 	cs := pof.NewConsensus(MaxBlocksPerFormulator, ObserverKeys)
-	app := app.NewFletaApp()
+	app := app.NewECRFApp()
 	cn := chain.NewChain(cs, app, st)
 	cn.MustAddProcess(admin.NewAdmin(1))
-	cn.MustAddProcess(vault.NewVault(2))
-	cn.MustAddProcess(formulator.NewFormulator(3))
-	cn.MustAddProcess(gateway.NewGateway(4))
-	cn.MustAddProcess(payment.NewPayment(5))
+	cn.MustAddProcess(study.NewStudy(2))
+	cn.MustAddProcess(user.NewUser(3))
+	cn.MustAddProcess(subject.NewSubject(4))
+	cn.MustAddProcess(visit.NewVisit(5))
+	cn.MustAddProcess(query.NewQuery(6))
 	as := apiserver.NewAPIServer()
 	cn.MustAddService(as)
 	ws := NewWatcher()
@@ -246,12 +247,20 @@ func main() {
 
 					for i := 0; i < 1; i++ {
 						Seq++
-						tx := &vault.Transfer{
+						tx := &study.UpdateMeta{
 							Timestamp_: uint64(time.Now().UnixNano()),
 							Seq_:       Seq,
 							From_:      Addr,
-							To:         Addr,
-							Amount:     amount.NewCoinAmount(1, 0),
+							Forms: []*study.Form{
+								&study.Form{
+									ID:       "form-id",
+									Name:     "form-name",
+									Type:     "form-type",
+									Priority: 1,
+									Extra:    types.NewStringStringMap(),
+									Groups:   []*study.Group{},
+								},
+							},
 						}
 						sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
 						if err != nil {
@@ -274,12 +283,20 @@ func main() {
 						select {
 						case <-ticker.C:
 							Seq++
-							tx := &vault.Transfer{
+							tx := &study.UpdateMeta{
 								Timestamp_: uint64(time.Now().UnixNano()),
 								Seq_:       Seq,
 								From_:      Addr,
-								To:         Addr,
-								Amount:     amount.NewCoinAmount(1, 0),
+								Forms: []*study.Form{
+									&study.Form{
+										ID:       "form-id",
+										Name:     "form-name",
+										Type:     "form-type",
+										Priority: 1,
+										Extra:    types.NewStringStringMap(),
+										Groups:   []*study.Group{},
+									},
+								},
 							}
 							sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
 							if err != nil {
@@ -288,12 +305,20 @@ func main() {
 							if err := nd.AddTx(tx, []common.Signature{sig}); err != nil {
 							}
 						case <-*pCh:
-							tx := &vault.Transfer{
+							tx := &study.UpdateMeta{
 								Timestamp_: uint64(time.Now().UnixNano()),
-								Seq_:       st.Seq(Addr) + 1,
+								Seq_:       Seq,
 								From_:      Addr,
-								To:         Addr,
-								Amount:     amount.NewCoinAmount(1, 0),
+								Forms: []*study.Form{
+									&study.Form{
+										ID:       "form-id",
+										Name:     "form-name",
+										Type:     "form-type",
+										Priority: 1,
+										Extra:    types.NewStringStringMap(),
+										Groups:   []*study.Group{},
+									},
+								},
 							}
 							sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
 							if err != nil {
@@ -311,7 +336,7 @@ func main() {
 			for {
 				b := <-ws.blockCh
 				for _, t := range b.Transactions {
-					if tx, is := t.(*vault.Transfer); is {
+					if tx, is := t.(*study.CreateSite); is {
 						pCh, has := waitMap[tx.From()]
 						if has {
 							(*pCh) <- struct{}{}

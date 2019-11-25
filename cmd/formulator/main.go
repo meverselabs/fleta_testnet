@@ -13,6 +13,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fletaio/fleta_testnet/core/txpool"
+	"github.com/fletaio/fleta_testnet/encoding"
+
 	"github.com/gorilla/websocket"
 
 	"github.com/fletaio/fleta_testnet/common/hash"
@@ -23,22 +26,20 @@ import (
 	"github.com/fletaio/fleta_testnet/cmd/closer"
 	"github.com/fletaio/fleta_testnet/cmd/config"
 	"github.com/fletaio/fleta_testnet/common"
-	"github.com/fletaio/fleta_testnet/common/amount"
 	"github.com/fletaio/fleta_testnet/common/key"
 	"github.com/fletaio/fleta_testnet/core/backend"
 	_ "github.com/fletaio/fleta_testnet/core/backend/badger_driver"
 	_ "github.com/fletaio/fleta_testnet/core/backend/buntdb_driver"
 	"github.com/fletaio/fleta_testnet/core/chain"
 	"github.com/fletaio/fleta_testnet/core/pile"
-	"github.com/fletaio/fleta_testnet/core/txpool"
 	"github.com/fletaio/fleta_testnet/core/types"
-	"github.com/fletaio/fleta_testnet/encoding"
 	"github.com/fletaio/fleta_testnet/pof"
 	"github.com/fletaio/fleta_testnet/process/admin"
-	"github.com/fletaio/fleta_testnet/process/formulator"
-	"github.com/fletaio/fleta_testnet/process/gateway"
-	"github.com/fletaio/fleta_testnet/process/payment"
-	"github.com/fletaio/fleta_testnet/process/vault"
+	"github.com/fletaio/fleta_testnet/process/query"
+	"github.com/fletaio/fleta_testnet/process/study"
+	"github.com/fletaio/fleta_testnet/process/subject"
+	"github.com/fletaio/fleta_testnet/process/user"
+	"github.com/fletaio/fleta_testnet/process/visit"
 	"github.com/fletaio/fleta_testnet/service/apiserver"
 )
 
@@ -190,18 +191,17 @@ func main() {
 	}
 
 	cs := pof.NewConsensus(MaxBlocksPerFormulator, ObserverKeys)
-	app := app.NewFletaApp()
+	app := app.NewECRFApp()
 	cn := chain.NewChain(cs, app, st)
 	cn.MustAddProcess(admin.NewAdmin(1))
-	vp := vault.NewVault(2)
+	vp := study.NewStudy(2)
 	cn.MustAddProcess(vp)
-	cn.MustAddProcess(formulator.NewFormulator(3))
-	cn.MustAddProcess(gateway.NewGateway(4))
-	cn.MustAddProcess(payment.NewPayment(5))
+	cn.MustAddProcess(user.NewUser(3))
+	cn.MustAddProcess(subject.NewSubject(4))
+	cn.MustAddProcess(visit.NewVisit(5))
+	cn.MustAddProcess(query.NewQuery(6))
 	as := apiserver.NewAPIServer()
 	cn.MustAddService(as)
-	ws := NewWatcher()
-	cn.MustAddService(ws)
 	if err := cn.Init(); err != nil {
 		panic(err)
 	}
@@ -266,11 +266,19 @@ func main() {
 		signer := common.NewPublicHash(key.PublicKey())
 		fc := encoding.Factory("transaction")
 		for _, Addr := range Addrs {
-			tx := &vault.TransferUnsafe{
+			tx := &study.UpdateMetaUnsafe{
 				Timestamp_: uint64(time.Now().UnixNano()),
 				From_:      Addr,
-				To:         Addr,
-				Amount:     amount.NewCoinAmount(1, 0),
+				Forms: []*study.Form{
+					&study.Form{
+						ID:       "form-id",
+						Name:     "form-name",
+						Type:     "form-type",
+						Priority: 1,
+						Extra:    types.NewStringStringMap(),
+						Groups:   []*study.Group{},
+					},
+				},
 			}
 			t, err := fc.TypeOf(tx)
 			if err != nil {
@@ -479,7 +487,7 @@ func main() {
 
 			id := uuid.NewV1().String()
 			key, _ := key.NewMemoryKeyFromString("fd1167aad31c104c9fceb5b8a4ffd3e20a272af82176352d3b6ac236d02bafd4")
-			tx := &vault.TextData{
+			tx := &study.TextData{
 				Timestamp_: uint64(time.Now().UnixNano()),
 				From_:      common.NewAddress(0, uint16(21000), 0),
 				Seq_:       st.Seq(common.NewAddress(0, uint16(21000), 0)) + 1,
@@ -620,150 +628,10 @@ func main() {
 		})
 	}
 
-	waitMap := map[common.Address]*chan struct{}{}
-	if false {
-		go func() {
-			for _, Addr := range Addrs {
-				waitMap[Addr] = ws.addAddress(Addr)
-			}
-
-			for _, v := range Addrs {
-				go func(Addr common.Address) {
-					for {
-						time.Sleep(5 * time.Second)
-
-						Seq := st.Seq(Addr)
-						key, _ := key.NewMemoryKeyFromString("fd1167aad31c104c9fceb5b8a4ffd3e20a272af82176352d3b6ac236d02bafd4")
-						log.Println(Addr.String(), "Start Transaction", Seq)
-
-						for i := 0; i < 2; i++ {
-							Seq++
-							tx := &vault.Transfer{
-								Timestamp_: uint64(time.Now().UnixNano()),
-								Seq_:       Seq,
-								From_:      Addr,
-								To:         Addr,
-								Amount:     amount.NewCoinAmount(1, 0),
-							}
-							sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
-							if err != nil {
-								panic(err)
-							}
-							if err := fr.AddTx(tx, []common.Signature{sig}); err != nil {
-								//panic(err)
-							}
-							time.Sleep(100 * time.Millisecond)
-						}
-
-						pCh := waitMap[Addr]
-
-						if pCh == nil {
-							log.Println(Addr)
-						}
-
-						for range *pCh {
-							Seq++
-							//log.Println(Addr.String(), "Execute Transaction", Seq)
-							tx := &vault.Transfer{
-								Timestamp_: uint64(time.Now().UnixNano()),
-								Seq_:       Seq,
-								From_:      Addr,
-								To:         Addr,
-								Amount:     amount.NewCoinAmount(1, 0),
-							}
-							sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
-							if err != nil {
-								panic(err)
-							}
-							if err := fr.AddTx(tx, []common.Signature{sig}); err != nil {
-								switch err {
-								case txpool.ErrExistTransaction:
-								case txpool.ErrTooFarSeq:
-									Seq--
-								}
-								time.Sleep(100 * time.Millisecond)
-								continue
-							}
-							time.Sleep(10 * time.Millisecond)
-						}
-					}
-				}(v)
-			}
-		}()
-	}
-
-	go func() {
-		for {
-			b := <-ws.blockCh
-			for i, t := range b.Transactions {
-				res := b.TransactionResults[i]
-				if res == 1 {
-					if tx, is := t.(chain.AccountTransaction); is {
-						CreatedAddr := common.NewAddress(b.Header.Height, uint16(i), 0)
-						switch tx.(type) {
-						case (*vault.IssueAccount):
-							log.Println("Created", CreatedAddr.String())
-						//case (*vault.Transfer):
-						//	log.Println("Transfered", tx.(*vault.Transfer).To)
-						default:
-							pCh, has := waitMap[tx.From()]
-							if has {
-								(*pCh) <- struct{}{}
-							}
-						}
-					}
-				}
-			}
-		}
-	}()
-
 	go fr.Run(":" + strconv.Itoa(cfg.Port))
 	go as.Run(":" + strconv.Itoa(cfg.APIPort))
 
 	cm.Wait()
-}
-
-// Watcher provides json rpc and web service for the chain
-type Watcher struct {
-	sync.Mutex
-	types.ServiceBase
-	waitMap map[common.Address]*chan struct{}
-	blockCh chan *types.Block
-}
-
-// NewWatcher returns a Watcher
-func NewWatcher() *Watcher {
-	s := &Watcher{
-		waitMap: map[common.Address]*chan struct{}{},
-		blockCh: make(chan *types.Block, 1000),
-	}
-	return s
-}
-
-// Name returns the name of the service
-func (s *Watcher) Name() string {
-	return "fleta.watcher"
-}
-
-// Init called when initialize service
-func (s *Watcher) Init(pm types.ProcessManager, cn types.Provider) error {
-	return nil
-}
-
-// OnLoadChain called when the chain loaded
-func (s *Watcher) OnLoadChain(loader types.Loader) error {
-	return nil
-}
-
-func (s *Watcher) addAddress(addr common.Address) *chan struct{} {
-	ch := make(chan struct{})
-	s.waitMap[addr] = &ch
-	return &ch
-}
-
-// OnBlockConnected called when a block is connected to the chain
-func (s *Watcher) OnBlockConnected(b *types.Block, events []types.Event, loader types.Loader) {
-	s.blockCh <- b
 }
 
 func GetBalance(c *websocket.Conn, addr string) (string, error) {

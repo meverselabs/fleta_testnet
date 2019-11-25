@@ -9,6 +9,7 @@ require (
 	github.com/boltdb/bolt v1.3.1
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgraph-io/badger v1.6.0
+	github.com/fletaio/fleta v0.0.0-20191121090809-7fe7dc70cc49
 	github.com/fletaio/testnet_explorer v0.0.0-20191120111006-953e3ceef715
 	github.com/gorilla/websocket v1.4.0
 	github.com/labstack/echo v3.3.10+incompatible

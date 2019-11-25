@@ -19,7 +19,7 @@ Open the Command line and enter the command below.
 Build Node(default, join to the testnet)
 ```
 $ git clone https://github.com/fletaio/fleta_testnet
-$ cd ./fleta/cmd/node
+$ cd ./fleta_testnet/cmd/node
 $ go build
 $ ./node
 ```
@@ -27,7 +27,7 @@ $ ./node
 Build Formulator(required to create formulator account for joining to the testnet as a observer)
 ```
 $ git clone https://github.com/fletaio/fleta_testnet
-$ cd ./fleta/cmd/formulator
+$ cd ./fleta_testnet/cmd/formulator
 $ go build
 $ ./formulator
 ```
@@ -35,7 +35,7 @@ $ ./formulator
 Build Observer(buildable, but cannot join to the testnet as a observer)
 ```
 $ git clone https://github.com/fletaio/fleta_testnet
-$ cd ./fleta/cmd/observer
+$ cd ./fleta_testnet/cmd/observer
 $ go build
 $ ./observer
 ```

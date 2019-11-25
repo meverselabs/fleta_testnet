@@ -1453,12 +1453,12 @@ func ExecuteServer(config *ssh.ClientConfig, infos []*Info, fn func(info *Info) 
 }
 
 func InstallCheck(info *Info) error {
-	bs, err := info.Conn.Output("ls /root/testnet/" + info.Type)
+	bs, err := info.Conn.Output("ls /root/fleta_testnet/" + info.Type)
 	if err != nil {
 		return err
 	}
 	ret := strings.TrimSpace(string(bs))
-	if ret == "/root/testnet/"+info.Type {
+	if ret == "/root/fleta_testnet/"+info.Type {
 		return nil
 	} else {
 		return ErrNotExist
@@ -1467,9 +1467,9 @@ func InstallCheck(info *Info) error {
 
 func ClearData(info *Info) error {
 	cmds := []string{
-		"rm -Rf /root/testnet/ndata",
-		"rm -Rf /root/testnet/odata",
-		"rm -Rf /root/testnet/fdata",
+		"rm -Rf /root/fleta_testnet/ndata",
+		"rm -Rf /root/fleta_testnet/odata",
+		"rm -Rf /root/fleta_testnet/fdata",
 	}
 	for _, cmd := range cmds {
 		if _, err := info.Conn.Output(cmd); err != nil {
@@ -1508,11 +1508,11 @@ func ChangeMode(info *Info, mode string, InsertTxCount string) error {
 	switch mode {
 	case "create":
 		cmds := []string{
-			"rm -Rf /root/testnet/config.toml",
+			"rm -Rf /root/fleta_testnet/config.toml",
 		}
 		switch info.Type {
 		case "observer":
-			cmd := `cat > /root/testnet/config.toml << 'EOF'
+			cmd := `cat > /root/fleta_testnet/config.toml << 'EOF'
 KeyHex = "` + info.Gen + `"
 ObseverPort = 45000
 FormulatorPort = 47000
@@ -1532,7 +1532,7 @@ UseRLog = false
 EOF`
 			cmds = append(cmds, cmd)
 		case "formulator":
-			cmd := `cat > /root/testnet/config.toml << 'EOF'
+			cmd := `cat > /root/fleta_testnet/config.toml << 'EOF'
 Port = 41000
 APIPort = 48000
 GenKeyHex = "` + info.Gen + `"
@@ -1558,7 +1558,7 @@ UseRLog = false
 EOF`
 			cmds = append(cmds, cmd)
 		case "txgen":
-			cmd := `cat > /root/testnet/config.toml << 'EOF'
+			cmd := `cat > /root/fleta_testnet/config.toml << 'EOF'
 ObserverKeys = [
 "4JDtZL53jhs7akrTjeaJicnA1ub99vUKkXeySUy6uVZ",
 "4f52SK2FEc6XzNuQfdQbLmV6o9Dg6UwD5Ajf8NM8XxR",
@@ -1593,11 +1593,11 @@ EOF`
 		return nil
 	case "insert":
 		cmds := []string{
-			"rm -Rf /root/testnet/config.toml",
+			"rm -Rf /root/fleta_testnet/config.toml",
 		}
 		switch info.Type {
 		case "observer":
-			cmd := `cat > /root/testnet/config.toml << 'EOF'
+			cmd := `cat > /root/fleta_testnet/config.toml << 'EOF'
 KeyHex = "` + info.Gen + `"
 ObseverPort = 45000
 FormulatorPort = 47000
@@ -1617,7 +1617,7 @@ UseRLog = false
 EOF`
 			cmds = append(cmds, cmd)
 		case "formulator":
-			cmd := `cat > /root/testnet/config.toml << 'EOF'
+			cmd := `cat > /root/fleta_testnet/config.toml << 'EOF'
 Port = 41000
 APIPort = 48000
 GenKeyHex = "` + info.Gen + `"
@@ -1645,7 +1645,7 @@ InsertTxCount = ` + InsertTxCount + `
 EOF`
 			cmds = append(cmds, cmd)
 		case "txgen":
-			cmd := `cat > /root/testnet/config.toml << 'EOF'
+			cmd := `cat > /root/fleta_testnet/config.toml << 'EOF'
 ObserverKeys = [
 "4JDtZL53jhs7akrTjeaJicnA1ub99vUKkXeySUy6uVZ",
 "4f52SK2FEc6XzNuQfdQbLmV6o9Dg6UwD5Ajf8NM8XxR",
@@ -1679,11 +1679,11 @@ EOF`
 		return nil
 	default:
 		cmds := []string{
-			"rm -Rf /root/testnet/config.toml",
+			"rm -Rf /root/fleta_testnet/config.toml",
 		}
 		switch info.Type {
 		case "observer":
-			cmd := `cat > /root/testnet/config.toml << 'EOF'
+			cmd := `cat > /root/fleta_testnet/config.toml << 'EOF'
 KeyHex = "` + info.Gen + `"
 ObseverPort = 45000
 FormulatorPort = 47000
@@ -1703,7 +1703,7 @@ UseRLog = false
 EOF`
 			cmds = append(cmds, cmd)
 		case "formulator":
-			cmd := `cat > /root/testnet/config.toml << 'EOF'
+			cmd := `cat > /root/fleta_testnet/config.toml << 'EOF'
 Port = 41000
 APIPort = 48000
 GenKeyHex = "` + info.Gen + `"
@@ -1729,7 +1729,7 @@ UseRLog = false
 EOF`
 			cmds = append(cmds, cmd)
 		case "txgen":
-			cmd := `cat > /root/testnet/config.toml << 'EOF'
+			cmd := `cat > /root/fleta_testnet/config.toml << 'EOF'
 ObserverKeys = [
 "4JDtZL53jhs7akrTjeaJicnA1ub99vUKkXeySUy6uVZ",
 "4f52SK2FEc6XzNuQfdQbLmV6o9Dg6UwD5Ajf8NM8XxR",
