@@ -165,7 +165,7 @@ func main() {
 	if cfg.CreateMode {
 		cn.MustAddService(ws)
 	}
-	e := explorer.NewExplorer(ex, "./_explorer", cfg.WebPortExplorer)
+	e := explorer.NewExplorer(ex, "./_explorer", cfg.WebPort)
 	cn.MustAddService(e)
 	e.SetConsensus(cs)
 	cn.MustAddService(e)
