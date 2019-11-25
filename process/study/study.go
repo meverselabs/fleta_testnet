@@ -59,9 +59,13 @@ func (p *Study) Init(reg *types.Register, pm types.ProcessManager, cn types.Prov
 		if err != nil {
 			return err
 		}
-		s.Set("height", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
+		s.Set("meta", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
 			loader := cn.NewLoaderWrapper(p.ID())
-			return loader.TargetHeight(), nil
+			Forms, err := p.MetaData(loader)
+			if err != nil {
+				return nil, err
+			}
+			return Forms, nil
 		})
 	}
 

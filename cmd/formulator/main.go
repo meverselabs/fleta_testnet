@@ -602,7 +602,7 @@ func main() {
 					defer c.Close()
 
 					for q := 0; q < requestPerUser; q++ {
-						if _, err := GetStudyHeight(c, "5CyLcFhpyN"); err != nil {
+						if _, err := GetStudyMeta(c, "5CyLcFhpyN"); err != nil {
 							log.Println(err)
 							atomic.AddUint64(&ErrorCount, 1)
 						} else {
@@ -634,8 +634,8 @@ func main() {
 	cm.Wait()
 }
 
-func GetStudyHeight(c *websocket.Conn, addr string) (string, error) {
-	res, err := DoRequest(c, "study.height", []interface{}{addr})
+func GetStudyMeta(c *websocket.Conn, addr string) (string, error) {
+	res, err := DoRequest(c, "study.meta", []interface{}{addr})
 	if err != nil {
 		return "", err
 	} else {

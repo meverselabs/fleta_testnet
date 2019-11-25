@@ -8,4 +8,5 @@ var (
 	ErrExistStudy      = errors.New("exist study")
 	ErrNotStudyAccount = errors.New("not study account")
 	ErrNotSiteAccount  = errors.New("not site account")
+	ErrNotExistMeta    = errors.New("not exist meta")
 )

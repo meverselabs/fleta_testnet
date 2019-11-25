@@ -42,6 +42,11 @@ func (tx *UpdateMetaUnsafe) Validate(p types.Process, loader types.LoaderWrapper
 
 // Execute updates the context by the transaction
 func (tx *UpdateMetaUnsafe) Execute(p types.Process, ctw *types.ContextWrapper, index uint16) error {
+	sp := p.(*Study)
+
+	if err := sp.setMetaData(ctw, tx.Forms); err != nil {
+		return err
+	}
 	return nil
 }
 
