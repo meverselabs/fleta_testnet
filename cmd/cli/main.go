@@ -939,6 +939,14 @@ func main() {
 			} else {
 				fmt.Println(ret)
 			}
+			//무결성 체크
+			fmt.Println("[Print Check Integrity]")
+			ret2, err := GetCheckIntegrity(Formulators[0].ServerIP, "20")
+			if err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			}
+			fmt.Println(ret2)
 		},
 	})
 	testCmd.AddCommand(&cobra.Command{
@@ -1037,6 +1045,254 @@ func main() {
 				return
 			} else {
 				fmt.Println("[Success]")
+			}
+			fmt.Print("Stop Observer[0] ... ")
+			if err := ExecuteServer(config, Observers[:1], func(info *Info) error {
+				return StopService(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			//가동 높이 진행 확인하고 지정된 블록 진행
+			BlockCount = uint32(50)
+			BlockCountStr = "50"
+			fmt.Println("Wait until " + BlockCountStr + " blocks")
+			TryCount = 0
+			for {
+				Height, err := GetHeight(Formulators[0].ServerIP)
+				if err != nil {
+					fmt.Println("[Fail] - ", err)
+					return
+				}
+				if Height >= BlockCount {
+					fmt.Println("Reach to " + BlockCountStr + " blocks [Success]")
+					break
+				}
+				time.Sleep(1 * time.Second)
+				TryCount++
+				if TryCount%5 == 0 {
+					fmt.Println("Fetching Height :", Height)
+				}
+				if TryCount > BlockCount {
+					fmt.Println("Reach to " + BlockCountStr + " blocks [Fail] - Cannot reach to objective height within " + BlockCountStr + " seconds")
+					return
+				}
+			}
+		},
+	})
+	testCmd.AddCommand(&cobra.Command{
+		Use:   "5a",
+		Short: "disaster recovery test",
+		Args:  cobra.MinimumNArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			// 서버에 연결
+			var wg sync.WaitGroup
+			for _, v := range Alls {
+				wg.Add(1)
+				go func(info *Info) {
+					defer wg.Done()
+
+					s := NewServer(info.ServerIP, config)
+					c, err := s.Open()
+					if err != nil {
+						panic(err)
+					}
+					info.Conn = c
+				}(v)
+			}
+			wg.Wait()
+
+			//서비스 정지
+			fmt.Print("Stop All Services... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return StopService(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			//데이터 클리어
+			fmt.Print("Clear Data ... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return ClearData(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			//일반 모드 On
+			fmt.Print("Turn On Normal Mode ... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return ChangeMode(info, "normal", "")
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			//서비스 시작
+			fmt.Print("Start All Services... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return StartService(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			time.Sleep(5 * time.Second)
+			//가동 높이 진행 확인하고 지정된 블록 진행
+			BlockCount := uint32(10)
+			BlockCountStr := strconv.FormatUint(uint64(BlockCount), 10)
+			fmt.Println("Wait until " + BlockCountStr + " blocks")
+			var TryCount uint32
+			for {
+				Height, err := GetHeight(Formulators[0].ServerIP)
+				if err != nil {
+					fmt.Println("[Fail] - ", err)
+					return
+				}
+				if Height >= BlockCount {
+					fmt.Println("Reach to " + BlockCountStr + " blocks [Success]")
+					break
+				}
+				time.Sleep(1 * time.Second)
+				TryCount++
+				if TryCount%5 == 0 {
+					fmt.Println("Fetching Height :", Height)
+				}
+				if TryCount > BlockCount {
+					fmt.Println("Reach to " + BlockCountStr + " blocks [Fail] - Cannot reach to objective height within " + BlockCountStr + " seconds")
+					return
+				}
+			}
+			fmt.Print("Stop All Formulators Except Formulator[0] ... ")
+			if err := ExecuteServer(config, Formulators[1:], func(info *Info) error {
+				return StopService(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			//가동 높이 진행 확인하고 지정된 블록 진행
+			BlockCount = uint32(50)
+			BlockCountStr = "50"
+			fmt.Println("Wait until " + BlockCountStr + " blocks")
+			TryCount = 0
+			for {
+				Height, err := GetHeight(Formulators[0].ServerIP)
+				if err != nil {
+					fmt.Println("[Fail] - ", err)
+					return
+				}
+				if Height >= BlockCount {
+					fmt.Println("Reach to " + BlockCountStr + " blocks [Success]")
+					break
+				}
+				time.Sleep(1 * time.Second)
+				TryCount++
+				if TryCount%5 == 0 {
+					fmt.Println("Fetching Height :", Height)
+				}
+				if TryCount > BlockCount {
+					fmt.Println("Reach to " + BlockCountStr + " blocks [Fail] - Cannot reach to objective height within " + BlockCountStr + " seconds")
+					return
+				}
+			}
+		},
+	})
+	testCmd.AddCommand(&cobra.Command{
+		Use:   "5b",
+		Short: "disaster recovery test",
+		Args:  cobra.MinimumNArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			// 서버에 연결
+			var wg sync.WaitGroup
+			for _, v := range Alls {
+				wg.Add(1)
+				go func(info *Info) {
+					defer wg.Done()
+
+					s := NewServer(info.ServerIP, config)
+					c, err := s.Open()
+					if err != nil {
+						panic(err)
+					}
+					info.Conn = c
+				}(v)
+			}
+			wg.Wait()
+
+			//서비스 정지
+			fmt.Print("Stop All Services... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return StopService(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			//데이터 클리어
+			fmt.Print("Clear Data ... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return ClearData(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			//일반 모드 On
+			fmt.Print("Turn On Normal Mode ... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return ChangeMode(info, "normal", "")
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			//서비스 시작
+			fmt.Print("Start All Services... ")
+			if err := ExecuteServer(config, Alls, func(info *Info) error {
+				return StartService(info)
+			}); err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			} else {
+				fmt.Println("[Success]")
+			}
+			time.Sleep(5 * time.Second)
+			//가동 높이 진행 확인하고 지정된 블록 진행
+			BlockCount := uint32(10)
+			BlockCountStr := strconv.FormatUint(uint64(BlockCount), 10)
+			fmt.Println("Wait until " + BlockCountStr + " blocks")
+			var TryCount uint32
+			for {
+				Height, err := GetHeight(Formulators[0].ServerIP)
+				if err != nil {
+					fmt.Println("[Fail] - ", err)
+					return
+				}
+				if Height >= BlockCount {
+					fmt.Println("Reach to " + BlockCountStr + " blocks [Success]")
+					break
+				}
+				time.Sleep(1 * time.Second)
+				TryCount++
+				if TryCount%5 == 0 {
+					fmt.Println("Fetching Height :", Height)
+				}
+				if TryCount > BlockCount {
+					fmt.Println("Reach to " + BlockCountStr + " blocks [Fail] - Cannot reach to objective height within " + BlockCountStr + " seconds")
+					return
+				}
 			}
 			fmt.Print("Stop Observer[0] ... ")
 			if err := ExecuteServer(config, Observers[:1], func(info *Info) error {
