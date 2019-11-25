@@ -37,8 +37,8 @@ type Info struct {
 	Conn       *ServerConn
 }
 
-func GetBalance(c *websocket.Conn, addr string) (string, error) {
-	res, err := DoRequest2(c, "vault.balance", []interface{}{addr})
+func GetStudyHeight(c *websocket.Conn, addr string) (string, error) {
+	res, err := DoRequest2(c, "study.height", []interface{}{addr})
 	if err != nil {
 		return "", err
 	} else {
@@ -714,7 +714,7 @@ func main() {
 					defer c.Close()
 
 					for q := 0; q < requestPerUser; q++ {
-						if _, err := GetBalance(c, "5CyLcFhpyN"); err != nil {
+						if _, err := GetStudyHeight(c, "5CyLcFhpyN"); err != nil {
 							log.Println(err)
 							atomic.AddUint64(&ErrorCount, 1)
 						} else {
@@ -726,7 +726,7 @@ func main() {
 			wg2.Wait()
 
 			TimeElapsed := time.Now().Sub(start)
-			fmt.Println(struct {
+			bs, err := json.Marshal(struct {
 				SuccessCount uint64
 				ErrorCount   uint64
 				TimeElapsed  float64
@@ -737,6 +737,11 @@ func main() {
 				TimeElapsed:  float64(TimeElapsed) / float64(time.Second),
 				TPS:          float64(SuccessCount+ErrorCount) * float64(time.Second) / float64(TimeElapsed),
 			})
+			if err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			}
+			fmt.Println(string(bs))
 		},
 	})
 	testCmd.AddCommand(&cobra.Command{
