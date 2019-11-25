@@ -11,8 +11,12 @@ require (
 	github.com/dgraph-io/badger v1.6.0
 	github.com/fletaio/fleta v0.0.0-20191121090809-7fe7dc70cc49
 	github.com/fletaio/testnet_explorer v0.0.0-20191120111006-953e3ceef715
+	github.com/fletaio/webserver v0.0.0-20190926090427-5a62061ed9ca
+	github.com/gorilla/sessions v1.2.0
 	github.com/gorilla/websocket v1.4.0
 	github.com/labstack/echo v3.3.10+incompatible
+	github.com/labstack/echo-contrib v0.7.0
+	github.com/labstack/echo/v4 v4.1.11
 	github.com/mr-tron/base58 v1.1.2
 	github.com/petar/GoLLRB v0.0.0-20190514000832-33fb24c13b99
 	github.com/pkg/errors v0.8.1
@@ -32,6 +36,8 @@ require (
 	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
 	golang.org/x/net v0.0.0-20190620200207-3b0461eec859
 	golang.org/x/sys v0.0.0-20190813064441-fde4db37ae7a
+	golang.org/x/text v0.3.2 // indirect
+	golang.org/x/tools v0.0.0-20190608022120-eacb66d2a7c3 // indirect
 	gopkg.in/tucnak/telebot.v2 v2.0.0-20190915201756-d408d5d2680d
 	gopkg.in/yaml.v2 v2.2.2
 )

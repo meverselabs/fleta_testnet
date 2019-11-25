@@ -30,8 +30,8 @@ import (
 	"github.com/fletaio/fleta_testnet/process/user"
 	"github.com/fletaio/fleta_testnet/process/visit"
 	"github.com/fletaio/fleta_testnet/service/apiserver"
-	"github.com/fletaio/fleta_testnet/service/explorer"
 	"github.com/fletaio/fleta_testnet/service/p2p"
+	"github.com/fletaio/testnet_explorer/explorerservice"
 )
 
 // Config is a configuration for the cmd
@@ -165,9 +165,10 @@ func main() {
 	if cfg.CreateMode {
 		cn.MustAddService(ws)
 	}
-	e := explorer.NewExplorer(ex, "./_explorer", cfg.WebPort)
-	cn.MustAddService(e)
-	e.SetConsensus(cs)
+	e, err := explorerservice.NewBlockExplorer("_explorer", cs, cfg.WebPort)
+	if err != nil {
+		panic(err)
+	}
 	cn.MustAddService(e)
 	if err := cn.Init(); err != nil {
 		panic(err)
@@ -254,7 +255,7 @@ func main() {
 							Forms: []*study.Form{
 								&study.Form{
 									ID:       "form-" + strconv.FormatUint(Seq, 10),
-									Name:     "CustomText : " + CustomText,
+									Name:     "CustomText : " + cfg.CustomText,
 									Type:     "form-type",
 									Priority: 1,
 									Extra:    types.NewStringStringMap(),
@@ -290,7 +291,7 @@ func main() {
 								Forms: []*study.Form{
 									&study.Form{
 										ID:       "form-" + strconv.FormatUint(Seq, 10),
-										Name:     "CustomText : " + CustomText,
+										Name:     "CustomText : " + cfg.CustomText,
 										Type:     "form-type",
 										Priority: 1,
 										Extra:    types.NewStringStringMap(),
@@ -313,7 +314,7 @@ func main() {
 								Forms: []*study.Form{
 									&study.Form{
 										ID:       "form-" + strconv.FormatUint(NextSeq, 10),
-										Name:     "CustomText : " + CustomText,
+										Name:     "CustomText : " + cfg.CustomText,
 										Type:     "form-type",
 										Priority: 1,
 										Extra:    types.NewStringStringMap(),
