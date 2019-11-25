@@ -3,6 +3,7 @@ package study
 import (
 	"github.com/fletaio/fleta_testnet/core/types"
 	"github.com/fletaio/fleta_testnet/process/admin"
+	"github.com/fletaio/fleta_testnet/service/apiserver"
 )
 
 // Study manages balance of accounts of the chain
@@ -48,6 +49,20 @@ func (p *Study) Init(reg *types.Register, pm types.ProcessManager, cn types.Prov
 		return types.ErrInvalidProcess
 	} else {
 		p.admin = v
+	}
+	if vs, err := pm.ServiceByName("fleta.apiserver"); err != nil {
+		//ignore when not loaded
+	} else if v, is := vs.(*apiserver.APIServer); !is {
+		//ignore when not loaded
+	} else {
+		s, err := v.JRPC("study")
+		if err != nil {
+			return err
+		}
+		s.Set("height", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
+			loader := cn.NewLoaderWrapper(p.ID())
+			return loader.TargetHeight(), nil
+		})
 	}
 
 	reg.RegisterAccount(1, &StudyAccount{})
