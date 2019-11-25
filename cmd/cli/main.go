@@ -199,34 +199,43 @@ func main() {
 			wg.Wait()
 
 			//옵저버 설치 체크
-			fmt.Print("Check Observer Installation ... ")
+			fmt.Println("[Check Observer Installation]")
 			if err := ExecuteServer(config, Observers, func(info *Info) error {
-				return InstallCheck(info)
+				if err := InstallCheck(info); err != nil {
+					fmt.Println("Observer", info.ServerIP, "...", "[Fail] - ", err)
+				} else {
+					fmt.Println("Observer", info.ServerIP, "...", "[Success]")
+				}
+				return nil
 			}); err != nil {
-				fmt.Println("[Fail] - ", err)
+				fmt.Println("[Error] - ", err)
 				return
-			} else {
-				fmt.Println("[Success]")
 			}
 			//포뮬레이터 설치 체크
-			fmt.Print("Check Formulator Installation ... ")
+			fmt.Println("[Check Formulator Installation]")
 			if err := ExecuteServer(config, Formulators, func(info *Info) error {
-				return InstallCheck(info)
+				if err := InstallCheck(info); err != nil {
+					fmt.Println("Formulator", info.ServerIP, info.Address, "...", "[Fail] - ", err)
+				} else {
+					fmt.Println("Formulator", info.ServerIP, info.Address, "...", "[Success]")
+				}
+				return nil
 			}); err != nil {
-				fmt.Println("[Fail] - ", err)
+				fmt.Println("[Error] - ", err)
 				return
-			} else {
-				fmt.Println("[Success]")
 			}
 			//Tx 생성기 설치 체크
-			fmt.Print("Check TxGen Installation ... ")
+			fmt.Println("[Check TxGen Installation]")
 			if err := ExecuteServer(config, TxGens, func(info *Info) error {
-				return InstallCheck(info)
+				if err := InstallCheck(info); err != nil {
+					fmt.Println("TxGen", info.ServerIP, "...", "[Fail] - ", err)
+				} else {
+					fmt.Println("TxGen", info.ServerIP, "...", "[Success]")
+				}
+				return nil
 			}); err != nil {
-				fmt.Println("[Fail] - ", err)
+				fmt.Println("[Error] - ", err)
 				return
-			} else {
-				fmt.Println("[Success]")
 			}
 			//서비스 정지
 			fmt.Print("Stop All Services... ")
@@ -415,6 +424,14 @@ func main() {
 				return
 			}
 			fmt.Println(ret)
+			//무결성 체크
+			fmt.Println("[Print Check Integrity]")
+			ret2, err := GetCheckIntegrity(Formulators[0].ServerIP, "10")
+			if err != nil {
+				fmt.Println("[Fail] - ", err)
+				return
+			}
+			fmt.Println(ret2)
 		},
 	})
 	testCmd.AddCommand(&cobra.Command{
