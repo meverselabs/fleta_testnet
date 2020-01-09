@@ -220,10 +220,6 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 			}
 
 			if MinRoundVoteAck != nil {
-				if ob.prevRoundEndTime > 0 {
-					debug.Average("GeneratorElection", (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
-				}
-
 				ob.round.RoundState = BlockWaitState
 				ob.round.MinRoundVoteAck = MinRoundVoteAck
 				ob.round.VoteFailCount = 0
@@ -682,10 +678,6 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 					ob.sendBlockGenRequest(brNext)
 				}
 			} else {
-				if ob.prevRoundEndTime > 0 {
-					debug.Average("RoundEnd", (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
-				}
-
 				ob.resetVoteRound(false)
 			}
 		}

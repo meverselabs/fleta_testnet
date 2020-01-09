@@ -146,14 +146,6 @@ func (ob *ObserverNode) Run(BindObserver string, BindFormulator string) {
 	go ob.fs.Run(BindFormulator)
 	go ob.requestTimer.Run()
 
-	go func() {
-		for !ob.isClose {
-			time.Sleep(30 * time.Second)
-			debug.Result()
-			log.Println("------------------------------")
-		}
-	}()
-
 	for i := 0; i < 2; i++ {
 		go func() {
 			for item := range ob.recvChan {
@@ -166,7 +158,7 @@ func (ob *ObserverNode) Run(BindObserver string, BindFormulator string) {
 					ob.fs.RemovePeer(item.PeerID)
 					continue
 				}
-				if p, has := ob.fs.peerMap[item.PeerID]; has {
+				if p, has := ob.fs.Peer(item.PeerID); has {
 					if err := ob.handleFormulatorMessage(p, m, item.Packet); err != nil {
 						log.Println("Formulator Error", p.Name(), err)
 						ob.fs.RemovePeer(item.PeerID)
@@ -261,6 +253,19 @@ func (ob *ObserverNode) Run(BindObserver string, BindFormulator string) {
 						rlog.Println(cp.Height(), "Current State", ob.round.RoundState, len(ob.adjustFormulatorMap()), ob.fs.PeerCount(), (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
 					}
 				}
+				if ob.round.RoundState == RoundVoteState {
+					ob.sendRoundVote()
+					ob.broadcastStatus()
+				} else if ob.round.RoundState == BlockVoteState {
+					br, has := ob.round.BlockRoundMap[ob.round.TargetHeight]
+					if has {
+						ob.sendBlockVote(br.BlockGenMessage)
+						if debug.DEBUG {
+							rlog.Println(cp.Height(), "sendBlockVote", ob.round.MinRoundVoteAck.Formulator.String(), encoding.Hash(br.BlockGenMessage.Block.Header), ob.round.RoundState, len(ob.adjustFormulatorMap()), ob.fs.PeerCount(), (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
+						}
+						IsFailable = false
+					}
+				}
 				if IsFailable {
 					ob.round.VoteFailCount++
 					if ob.round.VoteFailCount > 20 {
@@ -281,19 +286,6 @@ func (ob *ObserverNode) Run(BindObserver string, BindFormulator string) {
 							}
 						}
 						ob.resetVoteRound(true)
-					}
-				}
-				if ob.round.RoundState == RoundVoteState {
-					ob.sendRoundVote()
-					ob.broadcastStatus()
-				} else if ob.round.RoundState == BlockVoteState {
-					br, has := ob.round.BlockRoundMap[ob.round.TargetHeight]
-					if has {
-						ob.sendBlockVote(br.BlockGenMessage)
-						if debug.DEBUG {
-							rlog.Println(cp.Height(), "sendBlockVote", ob.round.MinRoundVoteAck.Formulator.String(), encoding.Hash(br.BlockGenMessage.Block.Header), ob.round.RoundState, len(ob.adjustFormulatorMap()), ob.fs.PeerCount(), (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
-						}
-						IsFailable = false
 					}
 				}
 			} else {

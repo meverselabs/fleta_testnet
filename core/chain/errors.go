@@ -30,4 +30,5 @@ var (
 	ErrFoundForkedBlock             = errors.New("found forked block")
 	ErrCannotDeleteGeneratorAccount = errors.New("cannot delete generator account")
 	ErrInvalidAccountName           = errors.New("invalid account name")
+	ErrInvalidTransactionTimeSlot   = errors.New("invalid transaction timeslot")
 )

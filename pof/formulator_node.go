@@ -10,7 +10,6 @@ import (
 	"github.com/bluele/gcache"
 
 	"github.com/fletaio/fleta_testnet/common"
-	"github.com/fletaio/fleta_testnet/common/debug"
 	"github.com/fletaio/fleta_testnet/common/hash"
 	"github.com/fletaio/fleta_testnet/common/key"
 	"github.com/fletaio/fleta_testnet/common/queue"
@@ -33,7 +32,6 @@ type genItem struct {
 type FormulatorConfig struct {
 	Formulator              common.Address
 	MaxTransactionsPerBlock int
-	PoolItems               []*txpool.PoolItem
 }
 
 // FormulatorNode procudes a block by the consensus
@@ -49,6 +47,7 @@ type FormulatorNode struct {
 	frPublicHash   common.PublicHash
 	statusLock     sync.Mutex
 	genLock        sync.Mutex
+	lastReqLock    sync.Mutex
 	lastGenItemMap map[uint32]*genItem
 	lastReqMessage *BlockReqMessage
 	lastGenHeight  uint32
@@ -148,14 +147,6 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 	go fr.nm.Run(BindAddress)
 	go fr.requestTimer.Run()
 
-	go func() {
-		for !fr.isClose {
-			time.Sleep(30 * time.Second)
-			debug.Result()
-			log.Println("------------------------------")
-		}
-	}()
-
 	WorkerCount := runtime.NumCPU()/2 + 1
 	if WorkerCount >= runtime.NumCPU() {
 		WorkerCount = runtime.NumCPU() - 1
@@ -183,7 +174,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 						if err != p2p.ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
 							rlog.Println("TransactionError", item.TxHash.String(), err.Error())
 							if len(item.PeerID) > 0 {
-								fr.nm.RemovePeer(item.PeerID)
+								fr.nm.AddBadPoint(item.PeerID, 1)
 							}
 						}
 						continue
@@ -314,6 +305,8 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 			}
 			fr.cleanPool(b)
 			rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockConnected", b.Header.Generator.String(), b.Header.Height, len(b.Transactions))
+
+			fr.lastReqLock.Lock()
 			if fr.lastReqMessage != nil {
 				if b.Header.Height <= fr.lastReqMessage.TargetHeight+fr.cs.maxBlocksPerFormulator {
 					if b.Header.Generator != fr.Config.Formulator {
@@ -321,6 +314,8 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					}
 				}
 			}
+			fr.lastReqLock.Unlock()
+
 			delete(fr.lastGenItemMap, b.Header.Height)
 			TargetHeight++
 			Count++
@@ -347,6 +342,27 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 
 // AddTx adds tx to txpool that only have valid signatures
 func (fr *FormulatorNode) AddTx(tx types.Transaction, sigs []common.Signature) error {
+	fc := encoding.Factory("transaction")
+	t, err := fc.TypeOf(tx)
+	if err != nil {
+		return err
+	}
+	TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
+	ctw := fr.cs.cn.Provider().NewLoaderWrapper(1)
+	if err := fr.addTx(ctw, TxHash, t, tx, sigs); err != nil {
+		return err
+	}
+	fr.txSendQ.Push(&p2p.TxMsgItem{
+		TxHash: TxHash,
+		Type:   t,
+		Tx:     tx,
+		Sigs:   sigs,
+	})
+	return nil
+}
+
+// PushTx pushes transaction
+func (fr *FormulatorNode) PushTx(tx types.Transaction, sigs []common.Signature) error {
 	fc := encoding.Factory("transaction")
 	t, err := fc.TypeOf(tx)
 	if err != nil {

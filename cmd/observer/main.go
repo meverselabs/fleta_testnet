@@ -7,10 +7,6 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/fletaio/fleta_testnet/core/types"
-
-	"github.com/fletaio/fleta_testnet/core/pile"
-
 	"github.com/fletaio/fleta_testnet/cmd/app"
 	"github.com/fletaio/fleta_testnet/cmd/closer"
 	"github.com/fletaio/fleta_testnet/cmd/config"
@@ -21,14 +17,14 @@ import (
 	_ "github.com/fletaio/fleta_testnet/core/backend/badger_driver"
 	_ "github.com/fletaio/fleta_testnet/core/backend/buntdb_driver"
 	"github.com/fletaio/fleta_testnet/core/chain"
+	"github.com/fletaio/fleta_testnet/core/pile"
+	"github.com/fletaio/fleta_testnet/core/types"
 	"github.com/fletaio/fleta_testnet/pof"
 	"github.com/fletaio/fleta_testnet/process/admin"
-	"github.com/fletaio/fleta_testnet/process/query"
-	"github.com/fletaio/fleta_testnet/process/study"
-	"github.com/fletaio/fleta_testnet/process/subject"
-	"github.com/fletaio/fleta_testnet/process/user"
-	"github.com/fletaio/fleta_testnet/process/visit"
-	"github.com/fletaio/fleta_testnet/service/apiserver"
+	"github.com/fletaio/fleta_testnet/process/formulator"
+	"github.com/fletaio/fleta_testnet/process/gateway"
+	"github.com/fletaio/fleta_testnet/process/payment"
+	"github.com/fletaio/fleta_testnet/process/vault"
 )
 
 // Config is a configuration for the cmd
@@ -96,32 +92,20 @@ func main() {
 
 	MaxBlocksPerFormulator := uint32(10)
 	ChainID := uint8(0x01)
-	Name := "FLETA Testnet"
+	Symbol := "FLETA"
+	Usage := "Mainnet"
 	Version := uint16(0x0001)
 
-	var back backend.StoreBackend
-	var cdb *pile.DB
-	switch cfg.BackendVersion {
-	case 0:
-		contextDB, err := backend.Create("badger", cfg.StoreRoot)
-		if err != nil {
-			panic(err)
-		}
-		back = contextDB
-	case 1:
-		contextDB, err := backend.Create("buntdb", cfg.StoreRoot+"/context")
-		if err != nil {
-			panic(err)
-		}
-		chainDB, err := pile.Open(cfg.StoreRoot + "/chain")
-		if err != nil {
-			panic(err)
-		}
-		chainDB.SetSyncMode(true)
-		back = contextDB
-		cdb = chainDB
+	back, err := backend.Create("buntdb", cfg.StoreRoot+"/context")
+	if err != nil {
+		panic(err)
 	}
-	st, err := chain.NewStore(back, cdb, ChainID, Name, Version)
+	cdb, err := pile.Open(cfg.StoreRoot + "/chain")
+	if err != nil {
+		panic(err)
+	}
+	cdb.SetSyncMode(true)
+	st, err := chain.NewStore(back, cdb, ChainID, Symbol, Usage, Version)
 	if err != nil {
 		panic(err)
 	}
@@ -134,16 +118,13 @@ func main() {
 	}
 
 	cs := pof.NewConsensus(MaxBlocksPerFormulator, ObserverKeys)
-	app := app.NewECRFApp()
+	app := app.NewFletaApp()
 	cn := chain.NewChain(cs, app, st)
 	cn.MustAddProcess(admin.NewAdmin(1))
-	cn.MustAddProcess(study.NewStudy(2))
-	cn.MustAddProcess(user.NewUser(3))
-	cn.MustAddProcess(subject.NewSubject(4))
-	cn.MustAddProcess(visit.NewVisit(5))
-	cn.MustAddProcess(query.NewQuery(6))
-	as := apiserver.NewAPIServer()
-	cn.MustAddService(as)
+	cn.MustAddProcess(vault.NewVault(2))
+	cn.MustAddProcess(formulator.NewFormulator(3))
+	cn.MustAddProcess(gateway.NewGateway(4))
+	cn.MustAddProcess(payment.NewPayment(5))
 	if err := cn.Init(); err != nil {
 		panic(err)
 	}
@@ -173,7 +154,6 @@ func main() {
 	cm.Add("observer", ob)
 
 	go ob.Run(":"+strconv.Itoa(cfg.ObseverPort), ":"+strconv.Itoa(cfg.FormulatorPort))
-	go as.Run(":" + strconv.Itoa(cfg.APIPort))
 
 	cm.Wait()
 }

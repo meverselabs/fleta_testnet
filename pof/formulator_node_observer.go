@@ -5,10 +5,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/fletaio/fleta_testnet/common/debug"
-	"github.com/fletaio/fleta_testnet/common/hash"
-
 	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/common/hash"
 	"github.com/fletaio/fleta_testnet/common/rlog"
 	"github.com/fletaio/fleta_testnet/core/chain"
 	"github.com/fletaio/fleta_testnet/core/types"
@@ -62,9 +60,6 @@ func (fr *FormulatorNode) handleObserverMessage(p peer.Peer, m interface{}, Retr
 	case *BlockReqMessage:
 		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockReqMessage", msg.TargetHeight)
 
-		fr.Lock()
-		defer fr.Unlock()
-
 		TargetHeight := fr.cs.cn.Provider().Height() + 1
 		if msg.TargetHeight < TargetHeight {
 			return nil
@@ -73,13 +68,22 @@ func (fr *FormulatorNode) handleObserverMessage(p peer.Peer, m interface{}, Retr
 			if time.Now().UnixNano() < fr.lastGenTime+int64(30*time.Second) {
 				return nil
 			}
+			fr.lastReqLock.Lock()
 			fr.lastReqMessage = nil
+			fr.lastReqLock.Unlock()
 		}
+		fr.lastReqLock.Lock()
 		if fr.lastReqMessage != nil {
 			if msg.TargetHeight <= fr.lastReqMessage.TargetHeight {
+				fr.lastReqLock.Unlock()
 				return nil
 			}
 		}
+		fr.lastReqLock.Unlock()
+
+		fr.Lock()
+		defer fr.Unlock()
+
 		if msg.TargetHeight > TargetHeight {
 			if msg.TargetHeight > TargetHeight+10 {
 				return nil
@@ -122,21 +126,33 @@ func (fr *FormulatorNode) handleObserverMessage(p peer.Peer, m interface{}, Retr
 		if msg.Formulator != Top.Address {
 			return ErrInvalidRequest
 		}
+		fr.lastReqLock.Lock()
 		fr.lastReqMessage = msg
+		fr.lastReqLock.Unlock()
 
-		go func(req *BlockReqMessage) error {
+		go func(ID string, req *BlockReqMessage) error {
 			fr.genLock.Lock()
 			defer fr.genLock.Unlock()
 
 			fr.Lock()
 			defer fr.Unlock()
 
-			if len(fr.Config.PoolItems) > 0 {
-				return fr.genInsertedBlock(p, req)
-			} else {
-				return fr.genBlock(p, req)
+			TargetHeight := fr.cs.cn.Provider().Height() + 1
+			if req.TargetHeight < TargetHeight {
+				return nil
 			}
-		}(msg)
+
+			fr.lastReqLock.Lock()
+			if fr.lastReqMessage != nil {
+				if req.TargetHeight < fr.lastReqMessage.TargetHeight {
+					fr.lastReqLock.Unlock()
+					return nil
+				}
+			}
+			fr.lastReqLock.Unlock()
+
+			return fr.genBlock(ID, req)
+		}(p.ID(), msg)
 		return nil
 	case *BlockGenMessage:
 		rlog.Println("Formulator", fr.Config.Formulator.String(), "Recv.BlockGenMessage", msg.Block.Header.Height)
@@ -146,7 +162,9 @@ func (fr *FormulatorNode) handleObserverMessage(p peer.Peer, m interface{}, Retr
 			return nil
 		}
 		if msg.Block.Header.Generator != fr.Config.Formulator {
+			fr.lastReqLock.Lock()
 			fr.lastReqMessage = nil
+			fr.lastReqLock.Unlock()
 		}
 		fr.Lock()
 		defer fr.Unlock()
@@ -270,9 +288,12 @@ func (fr *FormulatorNode) tryRequestNext() {
 	defer fr.requestLock.Unlock()
 
 	TargetHeight := fr.cs.cn.Provider().Height() + 1
+	fr.Lock()
 	if item, has := fr.lastGenItemMap[TargetHeight]; has && item.Recv && item.BlockGen != nil {
+		fr.Unlock()
 		return
 	}
+	fr.Unlock()
 
 	if !fr.requestTimer.Exist(TargetHeight) {
 		if fr.blockQ.Find(uint64(TargetHeight)) == nil {
@@ -393,7 +414,7 @@ func (fr *FormulatorNode) updateByGenItem() {
 	}
 }
 
-func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
+func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 	cp := fr.cs.cn.Provider()
 
 	RemainBlocks := fr.cs.maxBlocksPerFormulator
@@ -410,6 +431,8 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 	if StartBlockTime < LastTimestamp {
 		StartBlockTime = LastTimestamp + uint64(time.Millisecond)
 	}
+
+	rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenBegin", msg.TargetHeight)
 
 	var lastHeader *types.Header
 	ctx := fr.cs.cn.NewContext()
@@ -429,7 +452,6 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 			Timestamp = ctx.LastTimestamp() + 1
 		}
 
-		dp := debug.Start("BlockGenBegin")
 		var buffer bytes.Buffer
 		enc := encoding.NewEncoder(&buffer)
 		if err := enc.EncodeUint32(TimeoutCount); err != nil {
@@ -441,8 +463,6 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 		}
 
 		timer := time.NewTimer(200 * time.Millisecond)
-
-		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenBegin", msg.TargetHeight)
 
 		fr.txpool.Lock() // Prevent delaying from TxPool.Push
 		Count := 0
@@ -485,9 +505,7 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 		} else {
 			sm.GeneratorSignature = sig
 		}
-		dp.Stop()
-
-		p.SendPacket(p2p.MessageToPacket(sm))
+		fr.ms.SendTo(ID, sm)
 
 		rlog.Println("Formulator", fr.Config.Formulator.String(), "Send.BlockGenMessage", sm.Block.Header.Height, len(sm.Block.Transactions))
 
@@ -508,6 +526,8 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 		if ExpectedTime > PastTime {
 			IsEnd := false
 			fr.Unlock()
+
+			fr.lastReqLock.Lock()
 			if fr.lastReqMessage == nil {
 				IsEnd = true
 			}
@@ -517,6 +537,8 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 					IsEnd = true
 				}
 			}
+			fr.lastReqLock.Unlock()
+
 			fr.Lock()
 			if IsEnd {
 				return nil
@@ -524,131 +546,13 @@ func (fr *FormulatorNode) genBlock(p peer.Peer, msg *BlockReqMessage) error {
 		} else {
 			IsEnd := false
 			fr.Unlock()
+
+			fr.lastReqLock.Lock()
 			if fr.lastReqMessage == nil {
 				IsEnd = true
 			}
-			fr.Lock()
-			if IsEnd {
-				return nil
-			}
-		}
-	}
-	return nil
-}
+			fr.lastReqLock.Unlock()
 
-func (fr *FormulatorNode) genInsertedBlock(p peer.Peer, msg *BlockReqMessage) error {
-	cp := fr.cs.cn.Provider()
-
-	RemainBlocks := fr.cs.maxBlocksPerFormulator
-	if msg.TimeoutCount == 0 {
-		RemainBlocks = fr.cs.maxBlocksPerFormulator - fr.cs.blocksBySameFormulator
-	}
-
-	start := time.Now().UnixNano()
-	Now := uint64(time.Now().UnixNano())
-	StartBlockTime := Now
-	EndBlockTime := StartBlockTime + uint64(500*time.Millisecond)*uint64(RemainBlocks)
-
-	LastTimestamp := cp.LastTimestamp()
-	if StartBlockTime < LastTimestamp {
-		StartBlockTime = LastTimestamp + uint64(time.Millisecond)
-	}
-
-	var lastHeader *types.Header
-	ctx := fr.cs.cn.NewContext()
-	for i := uint32(0); i < RemainBlocks; i++ {
-		var TimeoutCount uint32
-		if i == 0 {
-			TimeoutCount = msg.TimeoutCount
-		} else {
-			ctx = ctx.NextContext(encoding.Hash(lastHeader), lastHeader.Timestamp)
-		}
-
-		Timestamp := StartBlockTime + uint64(i)*uint64(500*time.Millisecond)
-		if Timestamp > EndBlockTime {
-			Timestamp = EndBlockTime
-		}
-		if Timestamp <= ctx.LastTimestamp() {
-			Timestamp = ctx.LastTimestamp() + 1
-		}
-
-		dp := debug.Start("BlockGenBegin")
-		var buffer bytes.Buffer
-		enc := encoding.NewEncoder(&buffer)
-		if err := enc.EncodeUint32(TimeoutCount); err != nil {
-			return err
-		}
-		bc := chain.NewBlockCreator(fr.cs.cn, ctx, msg.Formulator, buffer.Bytes())
-		if err := bc.Init(); err != nil {
-			return err
-		}
-
-		rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenBegin", msg.TargetHeight)
-
-		for _, item := range fr.Config.PoolItems {
-			if err := bc.UnsafeAddTx(fr.Config.Formulator, item.TxType, item.TxHash, item.Transaction, item.Signatures, item.Signers); err != nil {
-				rlog.Println("UnsafeAddTx", err)
-				continue
-			}
-		}
-
-		b, err := bc.Finalize(Timestamp)
-		if err != nil {
-			return err
-		}
-
-		sm := &BlockGenMessage{
-			Block: b,
-		}
-		lastHeader = &b.Header
-
-		if sig, err := fr.key.Sign(encoding.Hash(b.Header)); err != nil {
-			return err
-		} else {
-			sm.GeneratorSignature = sig
-		}
-		dp.Stop()
-
-		p.SendPacket(p2p.MessageToPacket(sm))
-
-		rlog.Println("Formulator", fr.Config.Formulator.String(), "Send.BlockGenMessage", sm.Block.Header.Height, len(sm.Block.Transactions))
-
-		fr.lastGenItemMap[sm.Block.Header.Height] = &genItem{
-			BlockGen: sm,
-			Context:  ctx,
-		}
-		fr.lastGenHeight = ctx.TargetHeight()
-		fr.lastGenTime = time.Now().UnixNano()
-
-		ExpectedTime := 200*time.Millisecond + time.Duration(i)*500*time.Millisecond
-		if i == 0 {
-			ExpectedTime = 200 * time.Millisecond
-		} else if i >= 9 {
-			ExpectedTime = 4200*time.Millisecond + time.Duration(i-9+1)*200*time.Millisecond
-		}
-		PastTime := time.Duration(time.Now().UnixNano() - start)
-		if ExpectedTime > PastTime {
-			IsEnd := false
-			fr.Unlock()
-			if fr.lastReqMessage == nil {
-				IsEnd = true
-			}
-			if !IsEnd {
-				time.Sleep(ExpectedTime - PastTime)
-				if fr.lastReqMessage == nil {
-					IsEnd = true
-				}
-			}
-			fr.Lock()
-			if IsEnd {
-				return nil
-			}
-		} else {
-			IsEnd := false
-			fr.Unlock()
-			if fr.lastReqMessage == nil {
-				IsEnd = true
-			}
 			fr.Lock()
 			if IsEnd {
 				return nil

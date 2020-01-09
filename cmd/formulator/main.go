@@ -4,23 +4,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/signal"
 	"strconv"
-	"sync"
-	"sync/atomic"
 	"syscall"
-	"time"
-
-	"github.com/fletaio/fleta_testnet/core/txpool"
-	"github.com/fletaio/fleta_testnet/encoding"
-
-	"github.com/gorilla/websocket"
-
-	"github.com/fletaio/fleta_testnet/common/hash"
-
-	uuid "github.com/satori/go.uuid"
 
 	"github.com/fletaio/fleta_testnet/cmd/app"
 	"github.com/fletaio/fleta_testnet/cmd/closer"
@@ -35,12 +22,11 @@ import (
 	"github.com/fletaio/fleta_testnet/core/types"
 	"github.com/fletaio/fleta_testnet/pof"
 	"github.com/fletaio/fleta_testnet/process/admin"
-	"github.com/fletaio/fleta_testnet/process/query"
-	"github.com/fletaio/fleta_testnet/process/study"
-	"github.com/fletaio/fleta_testnet/process/subject"
-	"github.com/fletaio/fleta_testnet/process/user"
-	"github.com/fletaio/fleta_testnet/process/visit"
-	"github.com/fletaio/fleta_testnet/service/apiserver"
+	"github.com/fletaio/fleta_testnet/process/formulator"
+	"github.com/fletaio/fleta_testnet/process/gateway"
+	"github.com/fletaio/fleta_testnet/process/payment"
+	"github.com/fletaio/fleta_testnet/process/vault"
+	"github.com/gorilla/websocket"
 )
 
 // Config is a configuration for the cmd
@@ -160,25 +146,20 @@ func main() {
 
 	MaxBlocksPerFormulator := uint32(10)
 	ChainID := uint8(0x01)
-	Name := "FLETA Testnet"
+	Symbol := "FLETA"
+	Usage := "Mainnet"
 	Version := uint16(0x0001)
 
-	var back backend.StoreBackend
-	var cdb *pile.DB
-	if true {
-		contextDB, err := backend.Create("buntdb", cfg.StoreRoot+"/context")
-		if err != nil {
-			panic(err)
-		}
-		chainDB, err := pile.Open(cfg.StoreRoot + "/chain")
-		if err != nil {
-			panic(err)
-		}
-		chainDB.SetSyncMode(true)
-		back = contextDB
-		cdb = chainDB
+	back, err := backend.Create("buntdb", cfg.StoreRoot+"/context")
+	if err != nil {
+		panic(err)
 	}
-	st, err := chain.NewStore(back, cdb, ChainID, Name, Version)
+	cdb, err := pile.Open(cfg.StoreRoot + "/chain")
+	if err != nil {
+		panic(err)
+	}
+	cdb.SetSyncMode(true)
+	st, err := chain.NewStore(back, cdb, ChainID, Symbol, Usage, Version)
 	if err != nil {
 		panic(err)
 	}
@@ -191,17 +172,13 @@ func main() {
 	}
 
 	cs := pof.NewConsensus(MaxBlocksPerFormulator, ObserverKeys)
-	app := app.NewECRFApp()
+	app := app.NewFletaApp()
 	cn := chain.NewChain(cs, app, st)
 	cn.MustAddProcess(admin.NewAdmin(1))
-	vp := study.NewStudy(2)
-	cn.MustAddProcess(vp)
-	cn.MustAddProcess(user.NewUser(3))
-	cn.MustAddProcess(subject.NewSubject(4))
-	cn.MustAddProcess(visit.NewVisit(5))
-	cn.MustAddProcess(query.NewQuery(6))
-	as := apiserver.NewAPIServer()
-	cn.MustAddService(as)
+	cn.MustAddProcess(vault.NewVault(2))
+	cn.MustAddProcess(formulator.NewFormulator(3))
+	cn.MustAddProcess(gateway.NewGateway(4))
+	cn.MustAddProcess(payment.NewPayment(5))
 	if err := cn.Init(); err != nil {
 		panic(err)
 	}
@@ -260,50 +237,9 @@ func main() {
 		Addrs = []common.Address{}
 	}
 
-	PoolItems := []*txpool.PoolItem{}
-	if len(Addrs) > 0 {
-		key, _ := key.NewMemoryKeyFromString("fd1167aad31c104c9fceb5b8a4ffd3e20a272af82176352d3b6ac236d02bafd4")
-		signer := common.NewPublicHash(key.PublicKey())
-		fc := encoding.Factory("transaction")
-		for _, Addr := range Addrs {
-			tx := &study.UpdateMetaUnsafe{
-				Timestamp_: uint64(time.Now().UnixNano()),
-				From_:      Addr,
-				Forms: []*study.Form{
-					&study.Form{
-						ID:       "form-id",
-						Name:     "form-name",
-						Type:     "form-type",
-						Priority: 1,
-						Extra:    types.NewStringStringMap(),
-						Groups:   []*study.Group{},
-					},
-				},
-			}
-			t, err := fc.TypeOf(tx)
-			if err != nil {
-				panic(err)
-			}
-			TxHash := chain.HashTransactionByType(ChainID, t, tx)
-			sig, err := key.Sign(TxHash)
-			if err != nil {
-				panic(err)
-			}
-			item := &txpool.PoolItem{
-				TxType:      t,
-				TxHash:      TxHash,
-				Transaction: tx,
-				Signatures:  []common.Signature{sig},
-				Signers:     []common.PublicHash{signer},
-			}
-			PoolItems = append(PoolItems, item)
-		}
-	}
-
 	fr := pof.NewFormulatorNode(&pof.FormulatorConfig{
 		Formulator:              common.MustParseAddress(cfg.Formulator),
 		MaxTransactionsPerBlock: 7000,
-		PoolItems:               PoolItems,
 	}, frkey, ndkey, NetAddressMap, SeedNodeMap, cs, cfg.StoreRoot+"/peer")
 	if err := fr.Init(); err != nil {
 		panic(err)
@@ -311,325 +247,7 @@ func main() {
 	cm.RemoveAll()
 	cm.Add("formulator", fr)
 
-	if true {
-		s, err := as.JRPC("chain")
-		if err != nil {
-			panic(err)
-		}
-		s.Set("height", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
-			return cn.Provider().Height(), nil
-		})
-		s.Set("transaction", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
-			if arg.Len() != 1 {
-				return nil, apiserver.ErrInvalidArgument
-			}
-			TXID, err := arg.String(0)
-			if err != nil {
-				return nil, apiserver.ErrInvalidArgument
-			}
-			Height, Index, err := types.ParseTransactionID(TXID)
-			if err != nil {
-				return nil, err
-			}
-			if Height > st.Height() {
-				return nil, apiserver.ErrInvalidArgument
-			}
-			b, err := st.Block(Height)
-			if err != nil {
-				return nil, err
-			}
-			if int(Index) >= len(b.Transactions) {
-				return nil, apiserver.ErrInvalidArgument
-			}
-			return b.Transactions[Index], nil
-		})
-		s.Set("summary", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
-			if arg.Len() != 1 {
-				return nil, apiserver.ErrInvalidArgument
-			}
-			Height, err := arg.Uint32(0)
-			if err != nil {
-				return nil, apiserver.ErrInvalidArgument
-			}
-			if Height > st.Height() {
-				return nil, apiserver.ErrInvalidArgument
-			}
-
-			Blocks := []*types.Block{}
-			Txs := []types.Transaction{}
-			var MaxTPS float64
-			for h := uint32(1); h <= Height; h++ {
-				b, err := st.Block(h)
-				if err != nil {
-					return nil, err
-				}
-
-				if len(Blocks) == 0 {
-					MaxTPS = float64(len(b.Transactions) * 2)
-				} else {
-					TPS := float64(len(b.Transactions)) * float64(time.Second) / float64(b.Header.Timestamp-Blocks[len(Blocks)-1].Header.Timestamp)
-					if MaxTPS < TPS {
-						MaxTPS = TPS
-					}
-				}
-				Blocks = append(Blocks, b)
-				Txs = append(Txs, b.Transactions...)
-			}
-
-			TimeElapsed := Blocks[len(Blocks)-1].Header.Timestamp - Blocks[0].Header.Timestamp
-			return &struct {
-				TargetHeight uint32
-				ChainHeight  uint32
-				TxCount      int
-				TimeElapsed  float64
-				MaxTPS       float64
-				MeanTPS      float64
-			}{
-				TargetHeight: Height,
-				ChainHeight:  st.Height(),
-				TxCount:      len(Txs),
-				TimeElapsed:  float64(TimeElapsed) / float64(time.Second),
-				MaxTPS:       MaxTPS,
-				MeanTPS:      float64(len(Txs)) * float64(time.Second) / float64(TimeElapsed),
-			}, nil
-		})
-		s.Set("summary0tx", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
-			if arg.Len() != 1 {
-				return nil, apiserver.ErrInvalidArgument
-			}
-			Height, err := arg.Uint32(0)
-			if err != nil {
-				return nil, apiserver.ErrInvalidArgument
-			}
-			if Height > st.Height() {
-				return nil, apiserver.ErrInvalidArgument
-			}
-
-			Blocks := []*types.Block{}
-			Txs := []types.Transaction{}
-			var MaxTPS float64
-			var FirstTxTimestamp uint64
-			for h := uint32(1); h <= Height; h++ {
-				b, err := st.Block(h)
-				if err != nil {
-					return nil, err
-				}
-
-				if len(Blocks) == 0 {
-					MaxTPS = float64(len(b.Transactions) * 2)
-				} else {
-					TPS := float64(len(b.Transactions)) * float64(time.Second) / float64(b.Header.Timestamp-Blocks[len(Blocks)-1].Header.Timestamp)
-					if MaxTPS < TPS {
-						MaxTPS = TPS
-					}
-				}
-				if FirstTxTimestamp == 0 {
-					if len(b.Transactions) > 0 {
-						FirstTxTimestamp = b.Transactions[0].Timestamp()
-					}
-				}
-
-				Blocks = append(Blocks, b)
-				Txs = append(Txs, b.Transactions...)
-			}
-
-			TimeElapsed := Blocks[len(Blocks)-1].Header.Timestamp - FirstTxTimestamp
-			return &struct {
-				TargetHeight uint32
-				ChainHeight  uint32
-				TxCount      int
-				TimeElapsed  float64
-				MaxTPS       float64
-				MeanTPS      float64
-			}{
-				TargetHeight: Height,
-				ChainHeight:  st.Height(),
-				TxCount:      len(Txs),
-				TimeElapsed:  float64(TimeElapsed) / float64(time.Second),
-				MaxTPS:       MaxTPS,
-				MeanTPS:      float64(len(Txs)) * float64(time.Second) / float64(TimeElapsed),
-			}, nil
-		})
-		s.Set("genCount", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
-			if arg.Len() != 1 {
-				return nil, apiserver.ErrInvalidArgument
-			}
-			arg0, err := arg.String(0)
-			if err != nil {
-				return nil, err
-			}
-			addr, err := common.ParseAddress(arg0)
-			if err != nil {
-				return nil, err
-			}
-
-			var Count int
-			Height := st.Height()
-			for h := uint32(1); h <= Height; h++ {
-				bh, err := st.Header(h)
-				if err != nil {
-					return nil, err
-				}
-				if bh.Generator == addr {
-					Count++
-				}
-			}
-			return Count, nil
-		})
-		s.Set("sendText", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
-			if arg.Len() != 1 {
-				return nil, apiserver.ErrInvalidArgument
-			}
-			text, err := arg.String(0)
-			if err != nil {
-				return nil, err
-			}
-
-			id := uuid.NewV1().String()
-			key, _ := key.NewMemoryKeyFromString("fd1167aad31c104c9fceb5b8a4ffd3e20a272af82176352d3b6ac236d02bafd4")
-			tx := &study.TextData{
-				Timestamp_: uint64(time.Now().UnixNano()),
-				From_:      common.NewAddress(0, uint16(21000), 0),
-				Seq_:       st.Seq(common.NewAddress(0, uint16(21000), 0)) + 1,
-				ID:         id,
-				TextData:   text,
-			}
-			sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
-			if err != nil {
-				return nil, err
-			}
-			if err := fr.AddTx(tx, []common.Signature{sig}); err != nil {
-				return nil, err
-			}
-			return id, nil
-		})
-		s.Set("getText", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
-			if arg.Len() != 1 {
-				return nil, apiserver.ErrInvalidArgument
-			}
-			id, err := arg.String(0)
-			if err != nil {
-				return nil, err
-			}
-			return vp.TextData(cn.NewContext(), id), nil
-		})
-		s.Set("checkIntegrity", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
-			if arg.Len() != 1 {
-				return nil, apiserver.ErrInvalidArgument
-			}
-			Height, err := arg.Uint32(0)
-			if err != nil {
-				return nil, apiserver.ErrInvalidArgument
-			}
-			if Height > st.Height() {
-				return nil, apiserver.ErrInvalidArgument
-			}
-
-			Blocks := []*types.Block{}
-			Hashes := []string{}
-			HashesPrev := []string{}
-			GenHash, err := st.Hash(0)
-			if err != nil {
-				return nil, err
-			}
-			Hashes = append(Hashes, GenHash.String())
-			LevelRoots := []string{}
-			LevelRootsCalced := []string{}
-			for h := uint32(1); h <= Height; h++ {
-				b, err := st.Block(h)
-				if err != nil {
-					return nil, err
-				}
-				Blocks = append(Blocks, b)
-
-				TxHashes := make([]hash.Hash256, len(b.Transactions)+1)
-				TxHashes[0] = b.Header.PrevHash
-
-				for i, tx := range b.Transactions {
-					t := b.TransactionTypes[i]
-					TxHash := chain.HashTransactionByType(st.ChainID(), t, tx)
-					TxHashes[i+1] = TxHash
-				}
-				LevelRoot, err := chain.BuildLevelRoot(TxHashes)
-				if err != nil {
-					return nil, err
-				}
-				LevelRoots = append(LevelRoots, b.Header.LevelRootHash.String())
-				LevelRootsCalced = append(LevelRootsCalced, LevelRoot.String())
-				Hashes = append(Hashes, encoding.Hash(b.Header).String())
-				HashesPrev = append(HashesPrev, b.Header.PrevHash.String())
-			}
-
-			return &struct {
-				TargetHeight     uint32
-				ChainHeight      uint32
-				Hashes           []string
-				HashesPrev       []string
-				LevelRoots       []string
-				LevelRootsCalced []string
-			}{
-				TargetHeight:     Height,
-				ChainHeight:      st.Height(),
-				Hashes:           Hashes,
-				HashesPrev:       HashesPrev,
-				LevelRoots:       LevelRoots,
-				LevelRootsCalced: LevelRootsCalced,
-			}, nil
-		})
-		s.Set("readTest", func(ID interface{}, arg *apiserver.Argument) (interface{}, error) {
-			if arg.Len() != 2 {
-				return nil, apiserver.ErrInvalidArgument
-			}
-			userCount, err := arg.Int(0)
-			if err != nil {
-				return nil, err
-			}
-			requestPerUser, err := arg.Int(1)
-			if err != nil {
-				return nil, err
-			}
-
-			var SuccessCount uint64
-			var ErrorCount uint64
-			start := time.Now()
-			var wg sync.WaitGroup
-			for i := 0; i < userCount; i++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-
-					c, _, _ := websocket.DefaultDialer.Dial("ws://localhost:48000/api/endpoints/websocket", nil)
-					defer c.Close()
-
-					for q := 0; q < requestPerUser; q++ {
-						if _, err := GetStudyMeta(c, "5CyLcFhpyN"); err != nil {
-							log.Println(err)
-							atomic.AddUint64(&ErrorCount, 1)
-						} else {
-							atomic.AddUint64(&SuccessCount, 1)
-						}
-					}
-				}()
-			}
-			wg.Wait()
-
-			TimeElapsed := time.Now().Sub(start)
-			return &struct {
-				SuccessCount uint64
-				ErrorCount   uint64
-				TimeElapsed  float64
-				TPS          float64
-			}{
-				SuccessCount: SuccessCount,
-				ErrorCount:   ErrorCount,
-				TimeElapsed:  float64(TimeElapsed) / float64(time.Second),
-				TPS:          float64(SuccessCount+ErrorCount) * float64(time.Second) / float64(TimeElapsed),
-			}, nil
-		})
-	}
-
 	go fr.Run(":" + strconv.Itoa(cfg.Port))
-	go as.Run(":" + strconv.Itoa(cfg.APIPort))
 
 	cm.Wait()
 }

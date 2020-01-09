@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fletaio/fleta_testnet/common/amount"
+
 	"github.com/fletaio/fleta_testnet/cmd/app"
 	"github.com/fletaio/fleta_testnet/cmd/closer"
 	"github.com/fletaio/fleta_testnet/cmd/config"
@@ -24,12 +26,10 @@ import (
 	"github.com/fletaio/fleta_testnet/core/types"
 	"github.com/fletaio/fleta_testnet/pof"
 	"github.com/fletaio/fleta_testnet/process/admin"
-	"github.com/fletaio/fleta_testnet/process/query"
-	"github.com/fletaio/fleta_testnet/process/study"
-	"github.com/fletaio/fleta_testnet/process/subject"
-	"github.com/fletaio/fleta_testnet/process/user"
-	"github.com/fletaio/fleta_testnet/process/visit"
-	"github.com/fletaio/fleta_testnet/service/apiserver"
+	"github.com/fletaio/fleta_testnet/process/formulator"
+	"github.com/fletaio/fleta_testnet/process/gateway"
+	"github.com/fletaio/fleta_testnet/process/payment"
+	"github.com/fletaio/fleta_testnet/process/vault"
 	"github.com/fletaio/fleta_testnet/service/p2p"
 	"github.com/fletaio/testnet_explorer/explorerservice"
 )
@@ -105,11 +105,6 @@ func main() {
 		SeedNodeMap[pubhash] = netAddr
 	}
 
-	MaxBlocksPerFormulator := uint32(10)
-	ChainID := uint8(0x01)
-	Name := "FLETA Testnet"
-	Version := uint16(0x0001)
-
 	cm := closer.NewManager()
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc,
@@ -123,22 +118,22 @@ func main() {
 	}()
 	defer cm.CloseAll()
 
-	var back backend.StoreBackend
-	var cdb *pile.DB
-	if true {
-		contextDB, err := backend.Create("buntdb", cfg.StoreRoot+"/context")
-		if err != nil {
-			panic(err)
-		}
-		chainDB, err := pile.Open(cfg.StoreRoot + "/chain")
-		if err != nil {
-			panic(err)
-		}
-		chainDB.SetSyncMode(true)
-		back = contextDB
-		cdb = chainDB
+	MaxBlocksPerFormulator := uint32(10)
+	ChainID := uint8(0x01)
+	Symbol := "FLETA"
+	Usage := "Mainnet"
+	Version := uint16(0x0001)
+
+	back, err := backend.Create("buntdb", cfg.StoreRoot+"/context")
+	if err != nil {
+		panic(err)
 	}
-	st, err := chain.NewStore(back, cdb, ChainID, Name, Version)
+	cdb, err := pile.Open(cfg.StoreRoot + "/chain")
+	if err != nil {
+		panic(err)
+	}
+	cdb.SetSyncMode(true)
+	st, err := chain.NewStore(back, cdb, ChainID, Symbol, Usage, Version)
 	if err != nil {
 		panic(err)
 	}
@@ -151,16 +146,13 @@ func main() {
 	}
 
 	cs := pof.NewConsensus(MaxBlocksPerFormulator, ObserverKeys)
-	app := app.NewECRFApp()
+	app := app.NewFletaApp()
 	cn := chain.NewChain(cs, app, st)
 	cn.MustAddProcess(admin.NewAdmin(1))
-	cn.MustAddProcess(study.NewStudy(2))
-	cn.MustAddProcess(user.NewUser(3))
-	cn.MustAddProcess(subject.NewSubject(4))
-	cn.MustAddProcess(visit.NewVisit(5))
-	cn.MustAddProcess(query.NewQuery(6))
-	as := apiserver.NewAPIServer()
-	cn.MustAddService(as)
+	cn.MustAddProcess(vault.NewVault(2))
+	cn.MustAddProcess(formulator.NewFormulator(3))
+	cn.MustAddProcess(gateway.NewGateway(4))
+	cn.MustAddProcess(payment.NewPayment(5))
 	ws := NewWatcher()
 	if cfg.CreateMode {
 		cn.MustAddService(ws)
@@ -248,20 +240,12 @@ func main() {
 
 					for i := 0; i < 1; i++ {
 						Seq++
-						tx := &study.UpdateMeta{
+						tx := &vault.Transfer{
 							Timestamp_: uint64(time.Now().UnixNano()),
 							Seq_:       Seq,
 							From_:      Addr,
-							Forms: []*study.Form{
-								&study.Form{
-									ID:       "form-" + strconv.FormatUint(Seq, 10),
-									Name:     "CustomText : " + cfg.CustomText,
-									Type:     "form-type",
-									Priority: 1,
-									Extra:    types.NewStringStringMap(),
-									Groups:   []*study.Group{},
-								},
-							},
+							To:         Addr,
+							Amount:     amount.NewCoinAmount(0, 1),
 						}
 						sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
 						if err != nil {
@@ -284,20 +268,12 @@ func main() {
 						select {
 						case <-ticker.C:
 							Seq++
-							tx := &study.UpdateMeta{
+							tx := &vault.Transfer{
 								Timestamp_: uint64(time.Now().UnixNano()),
 								Seq_:       Seq,
 								From_:      Addr,
-								Forms: []*study.Form{
-									&study.Form{
-										ID:       "form-" + strconv.FormatUint(Seq, 10),
-										Name:     "CustomText : " + cfg.CustomText,
-										Type:     "form-type",
-										Priority: 1,
-										Extra:    types.NewStringStringMap(),
-										Groups:   []*study.Group{},
-									},
-								},
+								To:         Addr,
+								Amount:     amount.NewCoinAmount(0, 1),
 							}
 							sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
 							if err != nil {
@@ -307,20 +283,12 @@ func main() {
 							}
 						case <-*pCh:
 							NextSeq := st.Seq(Addr) + 1
-							tx := &study.UpdateMeta{
+							tx := &vault.Transfer{
 								Timestamp_: uint64(time.Now().UnixNano()),
 								Seq_:       NextSeq,
 								From_:      Addr,
-								Forms: []*study.Form{
-									&study.Form{
-										ID:       "form-" + strconv.FormatUint(NextSeq, 10),
-										Name:     "CustomText : " + cfg.CustomText,
-										Type:     "form-type",
-										Priority: 1,
-										Extra:    types.NewStringStringMap(),
-										Groups:   []*study.Group{},
-									},
-								},
+								To:         Addr,
+								Amount:     amount.NewCoinAmount(0, 1),
 							}
 							sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
 							if err != nil {
@@ -338,7 +306,7 @@ func main() {
 			for {
 				b := <-ws.blockCh
 				for _, t := range b.Transactions {
-					if tx, is := t.(*study.CreateSite); is {
+					if tx, is := t.(*vault.Transfer); is {
 						pCh, has := waitMap[tx.From()]
 						if has {
 							(*pCh) <- struct{}{}
@@ -350,7 +318,6 @@ func main() {
 	}
 
 	go nd.Run(":" + strconv.Itoa(cfg.Port))
-	go as.Run(":" + strconv.Itoa(cfg.APIPort))
 
 	cm.Wait()
 }

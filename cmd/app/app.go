@@ -5,45 +5,81 @@ import (
 	"github.com/fletaio/fleta_testnet/common/amount"
 	"github.com/fletaio/fleta_testnet/core/types"
 	"github.com/fletaio/fleta_testnet/process/admin"
-	"github.com/fletaio/fleta_testnet/process/study"
+	"github.com/fletaio/fleta_testnet/process/formulator"
+	"github.com/fletaio/fleta_testnet/process/gateway"
+	"github.com/fletaio/fleta_testnet/process/payment"
+	"github.com/fletaio/fleta_testnet/process/vault"
 )
 
-// ECRFApp is app
-type ECRFApp struct {
+// FletaApp is app
+type FletaApp struct {
 	*types.ApplicationBase
 	pm      types.ProcessManager
 	cn      types.Provider
 	addrMap map[string]common.Address
 }
 
-// NewECRFApp returns a ECRFApp
-func NewECRFApp() *ECRFApp {
-	return &ECRFApp{
+// NewFletaApp returns a FletaApp
+func NewFletaApp() *FletaApp {
+	return &FletaApp{
 		addrMap: map[string]common.Address{
-			"ecrf.study": common.MustParseAddress("3CUsUpv9v"),
+			"fleta.gateway":    common.MustParseAddress("3CUsUpv9v"),
+			"fleta.formulator": common.MustParseAddress("5PxjxeqJq"),
+			"fleta.payment":    common.MustParseAddress("7bScSUkTk"),
+			"fleta.vault":      common.MustParseAddress("9nvUvJfcf"),
 		},
 	}
 }
 
 // Name returns the name of the application
-func (app *ECRFApp) Name() string {
-	return "ECRFApp"
+func (app *FletaApp) Name() string {
+	return "FletaApp"
 }
 
 // Version returns the version of the application
-func (app *ECRFApp) Version() string {
+func (app *FletaApp) Version() string {
 	return "v1.0.0"
 }
 
 // Init initializes the consensus
-func (app *ECRFApp) Init(reg *types.Register, pm types.ProcessManager, cn types.Provider) error {
+func (app *FletaApp) Init(reg *types.Register, pm types.ProcessManager, cn types.Provider) error {
 	app.pm = pm
 	app.cn = cn
 	return nil
 }
 
 // InitGenesis initializes genesis data
-func (app *ECRFApp) InitGenesis(ctw *types.ContextWrapper) error {
+func (app *FletaApp) InitGenesis(ctw *types.ContextWrapper) error {
+	rewardPolicy := &formulator.RewardPolicy{
+		RewardPerBlock:        amount.NewCoinAmount(0, 951293759512937600), // 3%
+		PayRewardEveryBlocks:  172800,                                      // 1 day
+		AlphaEfficiency1000:   1000,                                        // 100%
+		SigmaEfficiency1000:   1150,                                        // 115%
+		OmegaEfficiency1000:   1300,                                        // 130%
+		HyperEfficiency1000:   1300,                                        // 130%
+		StakingEfficiency1000: 700,                                         // 70%
+	}
+	alphaPolicy := &formulator.AlphaPolicy{
+		AlphaCreationLimitHeight:  5184000,                         // 30 days
+		AlphaCreationAmount:       amount.NewCoinAmount(200000, 0), // 200,000 FLETA
+		AlphaUnlockRequiredBlocks: 2592000,                         // 15 days
+	}
+	sigmaPolicy := &formulator.SigmaPolicy{
+		SigmaRequiredAlphaBlocks:  5184000, // 30 days
+		SigmaRequiredAlphaCount:   4,       // 4 Alpha (800,000 FLETA)
+		SigmaUnlockRequiredBlocks: 2592000, // 15 days
+	}
+	omegaPolicy := &formulator.OmegaPolicy{
+		OmegaRequiredSigmaBlocks:  5184000, // 30 days
+		OmegaRequiredSigmaCount:   2,       // 2 Sigma (1,600,000 FLETA)
+		OmegaUnlockRequiredBlocks: 2592000, // 15 days
+	}
+	hyperPolicy := &formulator.HyperPolicy{
+		HyperCreationAmount:         amount.NewCoinAmount(5000000, 0), // 5,000,000 FLETA
+		HyperUnlockRequiredBlocks:   2592000,                          // 15 days
+		StakingUnlockRequiredBlocks: 2592000,                          // 15 days
+	}
+
 	if p, err := app.pm.ProcessByName("fleta.admin"); err != nil {
 		return err
 	} else if ap, is := p.(*admin.Admin); !is {
@@ -53,53 +89,107 @@ func (app *ECRFApp) InitGenesis(ctw *types.ContextWrapper) error {
 			return err
 		}
 	}
-	if p, err := app.pm.ProcessByName("ecrf.study"); err != nil {
+	if p, err := app.pm.ProcessByName("fleta.formulator"); err != nil {
 		return err
-	} else if _, is := p.(*study.Study); !is {
+	} else if fp, is := p.(*formulator.Formulator); !is {
 		return types.ErrNotExistProcess
 	} else {
+		if err := fp.InitPolicy(ctw,
+			rewardPolicy,
+			alphaPolicy,
+			sigmaPolicy,
+			omegaPolicy,
+			hyperPolicy,
+		); err != nil {
+			return err
+		}
 	}
+	if p, err := app.pm.ProcessByName("fleta.payment"); err != nil {
+		return err
+	} else if pp, is := p.(*payment.Payment); !is {
+		return types.ErrNotExistProcess
+	} else {
+		if err := pp.InitTopics(ctw, []string{
+			"fleta.formulator.server.cost",
+		}); err != nil {
+			return err
+		}
+	}
+	if p, err := app.pm.ProcessByName("fleta.gateway"); err != nil {
+		return err
+	} else if fp, is := p.(*gateway.Gateway); !is {
+		return types.ErrNotExistProcess
+	} else {
+		if err := fp.InitPolicy(ctw,
+			&gateway.Policy{
+				WithdrawFee: amount.NewCoinAmount(30, 0),
+			},
+		); err != nil {
+			return err
+		}
+	}
+	if p, err := app.pm.ProcessByName("fleta.vault"); err != nil {
+		return err
+	} else if sp, is := p.(*vault.Vault); !is {
+		return types.ErrNotExistProcess
+	} else {
+		if err := sp.InitPolicy(ctw,
+			&vault.Policy{
+				AccountCreationAmount: amount.NewCoinAmount(10, 0),
+			},
+		); err != nil {
+			return err
+		}
 
-	addStudyAccount(ctw, common.MustParsePublicHash("iUqb4PxXQ12JShdtEsb6SLipFFPHmSLW29zqHKGjvB"), common.MustParsePublicHash("4YjmYcLVvBSmtjh4Z7frRZhWgdEAYTSABCoqqzhKEJa"), common.MustParseAddress("5CyLcFhpyN"), "ecrf.study01")
-	addStudyAccount(ctw, common.MustParsePublicHash("2Jid4fJm3Kf2GD2hvSMTyCbvW5gGCuo2p2oDWo5GhKT"), common.MustParsePublicHash("27n37VV3ebGWSNH5r9wX3ZhUwzxC2heY34UvXjizLDK"), common.MustParseAddress("4wayWtvQuB"), "ecrf.study02")
-	addStudyAccount(ctw, common.MustParsePublicHash("4oV8S1dEuTKQrsac7CS81jZdQQpiG31CgoUd66eHXsk"), common.MustParsePublicHash("4GzTnuP7Hky1Dye1AJMLzEXTX2a5kEka5h9AJVvZyTD"), common.MustParseAddress("4sC1mwGabR"), "ecrf.study03")
-	addStudyAccount(ctw, common.MustParsePublicHash("324QLx4QrYrh9hE7dQb8xbmy4anyCvn6cGaE5jt3qE"), common.MustParsePublicHash("4ew8HQEwwSqeepMDCnwN9PiYg1uvoeZXyudqdQZBCb3"), common.MustParseAddress("58aNsJ3zfc"), "ecrf.study04")
-	addStudyAccount(ctw, common.MustParsePublicHash("mVssPMvS4RnSK6LmpYrWbXVxxhhE5AAyRbuU8Br74r"), common.MustParsePublicHash("VbMwA5AwSfn93ks8HMv7vvSx4THuzfeefTWVoANEha"), common.MustParseAddress("4gCcRY8zq4"), "ecrf.study05")
-	addStudyAccount(ctw, common.MustParsePublicHash("2Egzma6KP4yERrhEAeBdFiBEhCQHFyDaaJ1vGR1DYKf"), common.MustParsePublicHash("8eDJ3h8DLW8RSovYUjxmcDi1QNvo7UW64MQxGZ9dnS"), common.MustParseAddress("5mwYfT6aH5"), "ecrf.study06")
-	addStudyAccount(ctw, common.MustParsePublicHash("3z1S6ZzWKGfSHmW519sDBgSvoWJthzcprhJziofdNHQ"), common.MustParsePublicHash("3ZdKaqaCbGSQ5xmAphzVTeEF1eGzX6iU4LLGD2ox2g9"), common.MustParseAddress("51ywFraFCw"), "ecrf.study07")
-	addStudyAccount(ctw, common.MustParsePublicHash("4X8Fbz4HurLjpbdBsmhmqNbd8an7aPmCrRPRDLGkqVe"), common.MustParsePublicHash("3UHQyJwSSHHCw29fB5xiGk9W7GNf1DjGC284WhW6jpD"), common.MustParseAddress("4uPVeR6VkL"), "ecrf.study08")
-	addStudyAccount(ctw, common.MustParsePublicHash("49DaZWMvaiJU5DuZGwTJn99sMn4UuTEVU1CUKhHSPSi"), common.MustParsePublicHash("v3GwqbQehcqNVYbRzDk3TDJ7yJ19DgwoamZnMJZuVg"), common.MustParseAddress("4no42yckHf"), "ecrf.study09")
-	addStudyAccount(ctw, common.MustParsePublicHash("3yADixVW3KxWFhf1dNHkoDFbJCsKLPArQyg5btbh6nB"), common.MustParsePublicHash("3HhrC3gPR951SjnxjnHpfhRSWH1iR3SbCSwtCHvTLuC"), common.MustParseAddress("54BR8LQAMr"), "ecrf.study10")
-	addStudyAccount(ctw, common.MustParsePublicHash("2tqyyKDje5iiTD8Wvm6VyRSagN1QRzGDwrevhq1kmaJ"), common.MustParsePublicHash("4Ei1HSF3KtDfGrdzHCWfRf4NSTZ2oYCT1CNGFkjV1WB"), common.MustParseAddress("5p92XvvVRz"), "ecrf.study11")
-	addStudyAccount(ctw, common.MustParsePublicHash("4aDsBd3UCd74BsMYpfeZmxeUWeRph9WnDi14HHMFCKT"), common.MustParsePublicHash("3u6v76WAknSq1j86Pfb6p31FsBAJztPdVmY1kkw4k66"), common.MustParseAddress("5hYavVSjyK"), "ecrf.study12")
+		totalSupply := amount.NewCoinAmount(2000000000, 0)
+		alphaCreated := alphaPolicy.AlphaCreationAmount.MulC(189)
+		sigmaCreated := alphaPolicy.AlphaCreationAmount.MulC(int64(sigmaPolicy.SigmaRequiredAlphaCount)).MulC(108)
+		hyperCreated := hyperPolicy.HyperCreationAmount.MulC(6)
+		totalDeligated := amount.NewCoinAmount(50585413, 290667405989600000)
+		totalProvided := amount.NewCoinAmount(31076795, 184877310172010000)
+		gatewaySupply := totalSupply.Sub(alphaCreated).Sub(sigmaCreated).Sub(hyperCreated).Sub(totalDeligated).Sub(totalProvided)
+		addSingleAccount(sp, ctw, common.MustParsePublicHash("38dWpxjJY1RwqyzCfhuaTT9YjyyuxJktaWhRBq8XUZ5"), common.MustParseAddress("3CUsUpv9v"), "fleta.gateway", gatewaySupply)
+		addSingleAccount(sp, ctw, common.MustParsePublicHash("4RBfjoFaWGnKqSEaZ68djqceGmkMkCn4BnhYiEoJ5mv"), common.MustParseAddress("5PxjxeqJq"), "fleta.formulator", amount.NewCoinAmount(0, 0))
+		addSingleAccount(sp, ctw, common.MustParsePublicHash("2v2cC7uxoWP4wtvexV2FMM8C7gDSMrpwDQV9cz7t1f2"), common.MustParseAddress("7bScSUkTk"), "fleta.payment", amount.NewCoinAmount(0, 0))
+		addSingleAccount(sp, ctw, common.MustParsePublicHash("3GJBaEiHyjFyoT9PgUW7bLe75urSXYjd4Pegs56mxSa"), common.MustParseAddress("9nvUvJfcf"), "fleta.vault", amount.NewCoinAmount(0, 0))
 
-	setupSingleAccunt(ctw)
+		setupSigmaFormulator(sp, ctw, sigmaPolicy, alphaPolicy)
+		setupSingleAccunt(sp, ctw)
+	}
 	return nil
 }
 
 // OnLoadChain called when the chain loaded
-func (app *ECRFApp) OnLoadChain(loader types.LoaderWrapper) error {
+func (app *FletaApp) OnLoadChain(loader types.LoaderWrapper) error {
 	return nil
 }
 
-func addStudyAccount(ctw *types.ContextWrapper, KeyHash common.PublicHash, GenHash common.PublicHash, addr common.Address, name string) {
-	acc := &study.StudyAccount{
+func addSingleAccount(sp *vault.Vault, ctw *types.ContextWrapper, KeyHash common.PublicHash, addr common.Address, name string, am *amount.Amount) {
+	acc := &vault.SingleAccount{
 		Address_: addr,
 		Name_:    name,
 		KeyHash:  KeyHash,
-		GenHash:  GenHash,
 	}
 	if err := ctw.CreateAccount(acc); err != nil {
 		panic(err)
 	}
+	if !am.IsZero() {
+		if err := sp.AddBalance(ctw, acc.Address(), am); err != nil {
+			panic(err)
+		}
+	}
 }
 
-func addSingleAccount(ctw *types.ContextWrapper, KeyHash common.PublicHash, addr common.Address, name string, am *amount.Amount) {
-	acc := &study.StudyAccount{
-		Address_: addr,
-		Name_:    name,
-		KeyHash:  KeyHash,
-		GenHash:  KeyHash,
+func addSigmaFormulator(sp *vault.Vault, ctw *types.ContextWrapper, sigmaPolicy *formulator.SigmaPolicy, alphaPolicy *formulator.AlphaPolicy, KeyHash common.PublicHash, GenHash common.PublicHash, addr common.Address, name string) {
+	acc := &formulator.FormulatorAccount{
+		Address_:       addr,
+		Name_:          name,
+		FormulatorType: formulator.SigmaFormulatorType,
+		KeyHash:        KeyHash,
+		GenHash:        GenHash,
+		Amount:         alphaPolicy.AlphaCreationAmount.MulC(int64(sigmaPolicy.SigmaRequiredAlphaCount)),
+		PreHeight:      0,
+		UpdatedHeight:  0,
 	}
 	if err := ctw.CreateAccount(acc); err != nil {
 		panic(err)
