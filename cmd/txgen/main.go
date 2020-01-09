@@ -242,7 +242,7 @@ func main() {
 							Seq_:       Seq,
 							From_:      Addr,
 							To:         Addr,
-							Amount:     amount.NewCoinAmount(0, 1),
+							Amount:     amount.NewCoinAmount(1, 0),
 						}
 						sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
 						if err != nil {
@@ -270,7 +270,7 @@ func main() {
 								Seq_:       Seq,
 								From_:      Addr,
 								To:         Addr,
-								Amount:     amount.NewCoinAmount(0, 1),
+								Amount:     amount.NewCoinAmount(1, 0),
 							}
 							sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
 							if err != nil {
@@ -285,7 +285,7 @@ func main() {
 								Seq_:       NextSeq,
 								From_:      Addr,
 								To:         Addr,
-								Amount:     amount.NewCoinAmount(0, 1),
+								Amount:     amount.NewCoinAmount(1, 0),
 							}
 							sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
 							if err != nil {
