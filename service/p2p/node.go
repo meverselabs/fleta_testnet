@@ -126,12 +126,28 @@ func (nd *Node) Run(BindAddress string) {
 	go nd.ms.Run(BindAddress)
 	go nd.requestTimer.Run()
 
-	WorkerCount := runtime.NumCPU()/2 + 2
-	if WorkerCount >= runtime.NumCPU() {
-		WorkerCount = runtime.NumCPU() - 1
-	}
-	if WorkerCount < 1 {
-		WorkerCount = 1
+	WorkerCount := 1
+	switch runtime.NumCPU() {
+	case 3:
+		WorkerCount = 2
+	case 4:
+		WorkerCount = 2
+	case 5:
+		WorkerCount = 3
+	case 6:
+		WorkerCount = 4
+	case 7:
+		WorkerCount = 5
+	case 8:
+		WorkerCount = 6
+	default:
+		WorkerCount = runtime.NumCPU()/2 + 2
+		if WorkerCount >= runtime.NumCPU() {
+			WorkerCount = runtime.NumCPU() - 1
+		}
+		if WorkerCount < 1 {
+			WorkerCount = 1
+		}
 	}
 	for i := 0; i < WorkerCount; i++ {
 		go func() {
@@ -150,7 +166,7 @@ func (nd *Node) Run(BindAddress string) {
 					}
 					item := v.(*TxMsgItem)
 					if err := nd.addTx(ctw, item.TxHash, item.Type, item.Tx, item.Sigs); err != nil {
-						if err != ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
+						if err != ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrExistTransactionSeq && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
 							rlog.Println("TransactionError", item.TxHash.String(), err.Error())
 							if len(item.PeerID) > 0 {
 								nd.ms.AddBadPoint(item.PeerID, 1)
@@ -431,9 +447,11 @@ func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 		return nil
 	case *TransactionMessage:
 		//log.Println("Recv.TransactionMessage", nd.txWaitQ.Size(), nd.txpool.Size())
-		if nd.txWaitQ.Size() > 200000 {
-			return txpool.ErrTransactionPoolOverflowed
-		}
+		/*
+			if nd.txWaitQ.Size() > 200000 {
+				return txpool.ErrTransactionPoolOverflowed
+			}
+		*/
 		if len(msg.Types) > 800 {
 			return ErrTooManyTrasactionInMessage
 		}
@@ -530,9 +548,11 @@ func (nd *Node) PushTx(tx types.Transaction, sigs []common.Signature) error {
 }
 
 func (nd *Node) addTx(ctw types.LoaderWrapper, TxHash hash.Hash256, t uint16, tx types.Transaction, sigs []common.Signature) error {
-	if nd.txpool.Size() > 65535 {
-		return txpool.ErrTransactionPoolOverflowed
-	}
+	/*
+		if nd.txpool.Size() > 65535 {
+			return txpool.ErrTransactionPoolOverflowed
+		}
+	*/
 	cp := nd.cn.Provider()
 	if nd.txpool.IsExist(TxHash) {
 		return txpool.ErrExistTransaction

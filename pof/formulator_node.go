@@ -147,12 +147,28 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 	go fr.nm.Run(BindAddress)
 	go fr.requestTimer.Run()
 
-	WorkerCount := runtime.NumCPU()/2 + 1
-	if WorkerCount >= runtime.NumCPU() {
-		WorkerCount = runtime.NumCPU() - 1
-	}
-	if WorkerCount < 1 {
-		WorkerCount = 1
+	WorkerCount := 1
+	switch runtime.NumCPU() {
+	case 3:
+		WorkerCount = 2
+	case 4:
+		WorkerCount = 2
+	case 5:
+		WorkerCount = 3
+	case 6:
+		WorkerCount = 4
+	case 7:
+		WorkerCount = 5
+	case 8:
+		WorkerCount = 6
+	default:
+		WorkerCount = runtime.NumCPU()/2 + 2
+		if WorkerCount >= runtime.NumCPU() {
+			WorkerCount = runtime.NumCPU() - 1
+		}
+		if WorkerCount < 1 {
+			WorkerCount = 1
+		}
 	}
 	for i := 0; i < WorkerCount; i++ {
 		go func() {
@@ -171,7 +187,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					}
 					item := v.(*p2p.TxMsgItem)
 					if err := fr.addTx(ctw, item.TxHash, item.Type, item.Tx, item.Sigs); err != nil {
-						if err != p2p.ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
+						if err != p2p.ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrExistTransactionSeq && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
 							rlog.Println("TransactionError", item.TxHash.String(), err.Error())
 							if len(item.PeerID) > 0 {
 								fr.nm.AddBadPoint(item.PeerID, 1)
