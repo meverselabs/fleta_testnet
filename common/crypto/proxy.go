@@ -8,8 +8,8 @@ import (
 )
 
 // Ecrecover returns the uncompressed public key that created the given signature.
-func Ecrecover(hash, sig []byte) ([]byte, error) {
-	return ecrypto.Ecrecover(hash, sig)
+func Ecrecover(hash, sig, ret []byte) error {
+	return ecrypto.Ecrecover(hash, sig, ret)
 }
 
 // VerifySignature checks that the given public key created signature over hash.
@@ -20,8 +20,8 @@ func VerifySignature(pubkey, hash, signature []byte) bool {
 }
 
 // CompressPubkey encodes a public key to the 33-byte compressed format.
-func CompressPubkey(pubkey *ecdsa.PublicKey) []byte {
-	return ecrypto.CompressPubkey(pubkey)
+func CompressPubkey(pubkey *ecdsa.PublicKey, out []byte) {
+	ecrypto.CompressPubkey(pubkey, out)
 }
 
 // S256 returns an instance of the secp256k1 curve.
@@ -42,8 +42,8 @@ func GenerateKey() (*ecdsa.PrivateKey, error) {
 // solution is to hash any input before calculating the signature.
 //
 // The produced signature is in the [R || S || V] format where V is 0 or 1.
-func Sign(hash []byte, prv *ecdsa.PrivateKey) (sig []byte, err error) {
-	return ecrypto.Sign(hash, prv)
+func Sign(hash []byte, prv *ecdsa.PrivateKey, sig []byte) (err error) {
+	return ecrypto.Sign(hash, prv, sig)
 }
 
 // Keccak256 calculates and returns the Keccak256 hash of the input data.

@@ -8,20 +8,21 @@ import (
 	"github.com/fletaio/fleta_testnet/common/hash"
 )
 
+type publicKey65 [65]byte
+
 // RecoverPubkey recover the public key using the hash value and the signature
 func RecoverPubkey(h hash.Hash256, sig Signature) (PublicKey, error) {
-	bs, err := ecrypto.Ecrecover(h[:], sig[:])
-	if err != nil {
+	var pubkey65 publicKey65
+	if err := ecrypto.Ecrecover(h[:], sig[:], pubkey65[:]); err != nil {
 		return PublicKey{}, err
 	}
-	X, Y := elliptic.Unmarshal(ecrypto.S256(), bs)
-	key := ecrypto.CompressPubkey(&ecdsa.PublicKey{
+	X, Y := elliptic.Unmarshal(ecrypto.S256(), pubkey65[:])
+	var pubkey PublicKey
+	ecrypto.CompressPubkey(&ecdsa.PublicKey{
 		Curve: ecrypto.S256(),
 		X:     X,
 		Y:     Y,
-	})
-	var pubkey PublicKey
-	copy(pubkey[:], key)
+	}, pubkey[:])
 	return pubkey, nil
 }
 

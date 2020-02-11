@@ -21,7 +21,7 @@ func init() {
 				inErr = err
 				return false
 			}
-			if err := enc.Encode(value); err != nil {
+			if err := enc.EncodeBool(value); err != nil {
 				inErr = err
 				return false
 			}
@@ -43,8 +43,10 @@ func init() {
 				return err
 			}
 			var value bool
-			if err := dec.Decode(&value); err != nil {
+			if b, err := dec.DecodeBool(); err != nil {
 				return err
+			} else {
+				value = b
 			}
 			item.Put(key, value)
 		}

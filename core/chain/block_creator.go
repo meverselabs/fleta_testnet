@@ -72,7 +72,7 @@ func (bc *BlockCreator) AddTx(Generator common.Address, tx types.Transaction, si
 	if err != nil {
 		return err
 	}
-	TxHash := HashTransactionByType(bc.cn.Provider().ChainID(), t, tx)
+	TxHash := types.HashTransactionByType(bc.cn.Provider().ChainID(), t, tx)
 	signers := []common.PublicHash{}
 	for _, sig := range sigs {
 		if pubkey, err := common.RecoverPubkey(TxHash, sig); err != nil {

@@ -19,11 +19,11 @@ func init() {
 		}
 		var inErr error
 		item.EachAll(func(addr common.Address, am *amount.Amount) bool {
-			if err := enc.Encode(addr); err != nil {
+			if err := enc.EncodeBytes(addr[:]); err != nil {
 				inErr = err
 				return false
 			}
-			if err := enc.Encode(am); err != nil {
+			if err := enc.EncodeBytes(am.Bytes()); err != nil {
 				inErr = err
 				return false
 			}
@@ -41,12 +41,16 @@ func init() {
 		item := NewAddressAmountMap()
 		for i := 0; i < Len; i++ {
 			var addr common.Address
-			if err := dec.Decode(&addr); err != nil {
+			if bs, err := dec.DecodeBytes(); err != nil {
 				return err
+			} else {
+				copy(addr[:], bs)
 			}
-			am := amount.NewCoinAmount(0, 0)
-			if err := dec.Decode(&am); err != nil {
+			var am *amount.Amount
+			if bs, err := dec.DecodeBytes(); err != nil {
 				return err
+			} else {
+				am = amount.NewAmountFromBytes(bs)
 			}
 			item.Put(addr, am)
 		}

@@ -1,9 +1,11 @@
 package pof
 
 import (
+	"log"
 	"math/rand"
 
 	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/common/hash"
 	"github.com/fletaio/fleta_testnet/common/rlog"
 	"github.com/fletaio/fleta_testnet/core/chain"
 	"github.com/fletaio/fleta_testnet/core/types"
@@ -106,7 +108,7 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 			}
 		}
 	case *p2p.BlockMessage:
-		//log.Println("Recv.BlockMessage", SenderPublicHash.String(), msg.Blocks[0].Header.Height)
+		log.Println("Recv.BlockMessage", SenderPublicHash.String(), msg.Blocks[0].Header.Height)
 		for _, b := range msg.Blocks {
 			if err := fr.addBlock(b); err != nil {
 				if err == chain.ErrFoundForkedBlock {
@@ -126,21 +128,21 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 			}
 			fr.statusLock.Unlock()
 		}
-	case *p2p.TransactionMessage:
+	case *[]*p2p.TransactionMessage:
 		//log.Println("Recv.TransactionMessage", fr.txWaitQ.Size(), fr.txpool.Size())
 		/*
 			if fr.txWaitQ.Size() > 200000 {
 				return txpool.ErrTransactionPoolOverflowed
 			}
 		*/
-		if len(msg.Types) > 800 {
+		ms := (*msg)
+		if len(ms) > 800 {
 			return p2p.ErrTooManyTrasactionInMessage
 		}
 		ChainID := fr.cs.cn.Provider().ChainID()
 		currentSlot := types.ToTimeSlot(fr.cs.cn.Provider().LastTimestamp())
-		for i, t := range msg.Types {
-			tx := msg.Txs[i]
-			slot := types.ToTimeSlot(tx.Timestamp())
+		for _, v := range ms {
+			slot := types.ToTimeSlot(v.Tx.Timestamp())
 			if currentSlot > 0 {
 				if slot < currentSlot-1 {
 					continue
@@ -148,16 +150,23 @@ func (fr *FormulatorNode) handlePeerMessage(ID string, m interface{}) error {
 					continue
 				}
 			}
-			sigs := msg.Signatures[i]
-			TxHash := chain.HashTransactionByType(ChainID, t, tx)
-			if !fr.txpool.IsExist(TxHash) {
-				fr.txWaitQ.Push(TxHash, &p2p.TxMsgItem{
-					TxHash: TxHash,
-					Type:   t,
-					Tx:     tx,
-					Sigs:   sigs,
-					PeerID: ID,
-				})
+			raw := v.Raw()
+			var TxHash hash.Hash256
+			if len(raw) > 0 {
+				TxHash = hash.Hash(raw)
+			} else {
+				TxHash = types.HashTransactionByType(ChainID, v.Type, v.Tx)
+			}
+			if !fr.txWaitQ.Has(TxHash) {
+				if !fr.txpool.IsExist(TxHash) {
+					fr.txWaitQ.Push(TxHash, &p2p.TxMsgItem{
+						TxHash: TxHash,
+						Type:   v.Type,
+						Tx:     v.Tx,
+						Sigs:   v.Signatures,
+						PeerID: ID,
+					})
+				}
 			}
 		}
 		return nil

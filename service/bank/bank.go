@@ -511,7 +511,7 @@ func (s *Bank) Init(pm types.ProcessManager, cn types.Provider) error {
 				if err != nil {
 					return nil, err
 				}
-				mp["tx_hash"] = chain.HashTransactionByType(s.cn.ChainID(), t, tx).String()
+				mp["tx_hash"] = types.HashTransactionByType(s.cn.ChainID(), t, tx).String()
 				mp["type"] = name
 				txmps = append(txmps, mp)
 			}

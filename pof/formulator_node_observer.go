@@ -3,9 +3,11 @@ package pof
 import (
 	"bytes"
 	"log"
+	"runtime"
 	"time"
 
 	"github.com/fletaio/fleta_testnet/common"
+	"github.com/fletaio/fleta_testnet/common/hash"
 	"github.com/fletaio/fleta_testnet/common/rlog"
 	"github.com/fletaio/fleta_testnet/core/chain"
 	"github.com/fletaio/fleta_testnet/core/types"
@@ -260,19 +262,26 @@ func (fr *FormulatorNode) handleObserverMessage(p peer.Peer, m interface{}, Retr
 
 		fr.tryRequestNext()
 		return nil
-	case *p2p.TransactionMessage:
+	case *[]*p2p.TransactionMessage:
+		ms := (*msg)
 		ChainID := fr.cs.cn.Provider().ChainID()
-		for i, t := range msg.Types {
-			tx := msg.Txs[i]
-			sigs := msg.Signatures[i]
-			TxHash := chain.HashTransactionByType(ChainID, t, tx)
-			if !fr.txpool.IsExist(TxHash) {
-				fr.txWaitQ.Push(TxHash, &p2p.TxMsgItem{
-					TxHash: TxHash,
-					Type:   t,
-					Tx:     tx,
-					Sigs:   sigs,
-				})
+		for _, v := range ms {
+			raw := v.Raw()
+			var TxHash hash.Hash256
+			if len(raw) > 0 {
+				TxHash = hash.Hash(raw)
+			} else {
+				TxHash = types.HashTransactionByType(ChainID, v.Type, v.Tx)
+			}
+			if !fr.txWaitQ.Has(TxHash) {
+				if !fr.txpool.IsExist(TxHash) {
+					fr.txWaitQ.Push(TxHash, &p2p.TxMsgItem{
+						TxHash: TxHash,
+						Type:   v.Type,
+						Tx:     v.Tx,
+						Sigs:   v.Signatures,
+					})
+				}
 			}
 		}
 		return nil
@@ -410,6 +419,7 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 	Now := uint64(time.Now().UnixNano())
 	StartBlockTime := Now
 	EndBlockTime := StartBlockTime + uint64(500*time.Millisecond)*uint64(RemainBlocks)
+	//EndBlockTime := StartBlockTime + uint64(1000*time.Millisecond)*uint64(RemainBlocks)
 
 	LastTimestamp := cp.LastTimestamp()
 	if StartBlockTime < LastTimestamp {
@@ -419,10 +429,33 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 	rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockGenBegin", msg.TargetHeight, fr.txpool.Size())
 
 	MaxTxPerBlock := fr.Config.MaxTransactionsPerBlock
-	EvenTxPerBlock := int(float64(fr.txpool.Size()) / float64(RemainBlocks) * 1.5)
+	EvenTxPerBlock := int(float64(fr.txpool.Size()) / float64(RemainBlocks) * 1.2)
 	if MaxTxPerBlock > EvenTxPerBlock {
 		MaxTxPerBlock = EvenTxPerBlock
 	}
+	switch runtime.NumCPU() {
+	case 4:
+		if MaxTxPerBlock > 2600 {
+			MaxTxPerBlock = 2600
+		}
+	case 5:
+		if MaxTxPerBlock > 2900 {
+			MaxTxPerBlock = 2900
+		}
+	case 6:
+		if MaxTxPerBlock > 3200 {
+			MaxTxPerBlock = 3200
+		}
+	case 7:
+		if MaxTxPerBlock > 3500 {
+			MaxTxPerBlock = 3500
+		}
+	case 8:
+		if MaxTxPerBlock > 3800 {
+			MaxTxPerBlock = 3800
+		}
+	}
+	//MaxTxPerBlock = MaxTxPerBlock * 2
 
 	var lastHeader *types.Header
 	ctx := fr.cs.cn.NewContext()
@@ -435,6 +468,7 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 		}
 
 		Timestamp := StartBlockTime + uint64(i)*uint64(500*time.Millisecond)
+		//Timestamp := StartBlockTime + uint64(i)*uint64(1000*time.Millisecond)
 		if Timestamp > EndBlockTime {
 			Timestamp = EndBlockTime
 		}
@@ -452,7 +486,7 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 			return err
 		}
 
-		timer := time.NewTimer(200 * time.Millisecond)
+		timer := time.NewTimer(300 * time.Millisecond)
 
 		fr.txpool.Lock() // Prevent delaying from TxPool.Push
 		Count := 0
@@ -507,11 +541,14 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 		fr.lastGenHeight = ctx.TargetHeight()
 		fr.lastGenTime = time.Now().UnixNano()
 
-		ExpectedTime := 200*time.Millisecond + time.Duration(i)*500*time.Millisecond
+		//ExpectedTime := 200*time.Millisecond + time.Duration(i)*500*time.Millisecond
+		ExpectedTime := time.Duration(i) * 500 * time.Millisecond
+		//ExpectedTime := time.Duration(i) * 1000 * time.Millisecond
 		if i == 0 {
-			ExpectedTime = 200 * time.Millisecond
+			//ExpectedTime = 200 * time.Millisecond
 		} else if i >= 9 {
-			ExpectedTime = 4200*time.Millisecond + time.Duration(i-9+1)*200*time.Millisecond
+			ExpectedTime = 4000*time.Millisecond + time.Duration(i-9+1)*200*time.Millisecond
+			//ExpectedTime = 8000*time.Millisecond + time.Duration(i-9+1)*600*time.Millisecond
 		}
 		PastTime := time.Duration(time.Now().UnixNano() - start)
 		if ExpectedTime > PastTime {

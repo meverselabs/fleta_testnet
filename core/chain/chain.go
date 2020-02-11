@@ -4,6 +4,7 @@ import (
 	"log"
 	"runtime"
 	"sync"
+	"sync/atomic"
 
 	"github.com/fletaio/fleta_testnet/common"
 	"github.com/fletaio/fleta_testnet/common/hash"
@@ -438,9 +439,7 @@ func (cn *Chain) validateTransactionSignatures(b *types.Block, sp SignerProvider
 	TxHashes[0] = b.Header.PrevHash
 	TxSigners := make([][]common.PublicHash, len(b.Transactions))
 
-	if sp != nil {
-		sp.Lock()
-	}
+	var hitCount uint64
 	if len(b.Transactions) > 0 {
 		var wg sync.WaitGroup
 		cpuCnt := runtime.NumCPU()
@@ -453,6 +452,10 @@ func (cn *Chain) validateTransactionSignatures(b *types.Block, sp SignerProvider
 		}
 		errs := make(chan error, cpuCnt)
 		defer close(errs)
+
+		if sp != nil {
+			sp.Lock()
+		}
 		for i := 0; i < cpuCnt; i++ {
 			lastCnt := (i + 1) * txUnit
 			if lastCnt > len(b.Transactions) {
@@ -461,15 +464,30 @@ func (cn *Chain) validateTransactionSignatures(b *types.Block, sp SignerProvider
 			wg.Add(1)
 			go func(sidx int, txs []types.Transaction) {
 				defer wg.Done()
+				var count uint64
 				for q, tx := range txs {
 					t := b.TransactionTypes[sidx+q]
 					sigs := b.TransactionSignatures[sidx+q]
 
-					TxHash := HashTransactionByType(cn.store.chainID, t, tx)
+					TxHash := types.HashTransactionByType(cn.store.chainID, t, tx)
 					TxHashes[sidx+q+1] = TxHash
 					var signers []common.PublicHash
 					if sp != nil {
-						signers = sp.UnsafeGetSigners(TxHash)
+						gsg, gsn := sp.UnsafeGetSigners(TxHash)
+						if gsg != nil {
+							if len(gsg) == len(sigs) {
+								isSame := true
+								for i, sig := range sigs {
+									if gsg[i] != sig {
+										isSame = false
+										break
+									}
+								}
+								if isSame {
+									signers = gsn
+								}
+							}
+						}
 					}
 					if signers == nil {
 						signers = make([]common.PublicHash, 0, len(sigs))
@@ -481,20 +499,24 @@ func (cn *Chain) validateTransactionSignatures(b *types.Block, sp SignerProvider
 							}
 							signers = append(signers, common.NewPublicHash(pubkey))
 						}
+					} else {
+						count++
 					}
 					TxSigners[sidx+q] = signers
 				}
+				atomic.AddUint64(&hitCount, count)
 			}(i*txUnit, b.Transactions[i*txUnit:lastCnt])
 		}
 		wg.Wait()
+		if sp != nil {
+			sp.Unlock()
+		}
 		if len(errs) > 0 {
 			err := <-errs
 			return nil, nil, err
 		}
 	}
-	if sp != nil {
-		sp.Unlock()
-	}
+	log.Println("HitRate", b.Header.Height, hitCount, len(b.Transactions))
 
 	if h, err := BuildLevelRoot(TxHashes); err != nil {
 		return nil, nil, err

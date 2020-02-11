@@ -35,9 +35,7 @@ func NewMemoryKey() (*MemoryKey, error) {
 	ac := &MemoryKey{
 		PrivKey: PrivKey,
 	}
-	if err := ac.calcPubkey(); err != nil {
-		return nil, err
-	}
+	ac.calcPubkey()
 	return ac, nil
 }
 
@@ -53,9 +51,7 @@ func NewMemoryKeyFromString(sk string) (*MemoryKey, error) {
 	}
 	ac.PrivKey.D.SetString(sk, 16)
 	ac.PrivKey.PublicKey.X, ac.PrivKey.PublicKey.Y = ac.PrivKey.Curve.ScalarBaseMult(ac.PrivKey.D.Bytes())
-	if err := ac.calcPubkey(); err != nil {
-		return nil, err
-	}
+	ac.calcPubkey()
 	return ac, nil
 }
 
@@ -71,9 +67,7 @@ func NewMemoryKeyFromBytes(pk []byte) (*MemoryKey, error) {
 	}
 	ac.PrivKey.D.SetBytes(pk)
 	ac.PrivKey.PublicKey.X, ac.PrivKey.PublicKey.Y = ac.PrivKey.Curve.ScalarBaseMult(ac.PrivKey.D.Bytes())
-	if err := ac.calcPubkey(); err != nil {
-		return nil, err
-	}
+	ac.calcPubkey()
 	return ac, nil
 }
 
@@ -84,10 +78,8 @@ func (ac *MemoryKey) Clear() {
 	ac.PrivKey.Y.SetBytes([]byte{0})
 }
 
-func (ac *MemoryKey) calcPubkey() error {
-	pk := ecrypto.CompressPubkey(&ac.PrivKey.PublicKey)
-	copy(ac.pubkey[:], pk[:])
-	return nil
+func (ac *MemoryKey) calcPubkey() {
+	ecrypto.CompressPubkey(&ac.PrivKey.PublicKey, ac.pubkey[:])
 }
 
 // PublicKey returns the public key of the private key
@@ -97,12 +89,10 @@ func (ac *MemoryKey) PublicKey() common.PublicKey {
 
 // Sign generates the signature of the target hash
 func (ac *MemoryKey) Sign(h hash.Hash256) (common.Signature, error) {
-	bs, err := ecrypto.Sign(h[:], ac.PrivKey)
-	if err != nil {
+	var sig common.Signature
+	if err := ecrypto.Sign(h[:], ac.PrivKey, sig[:]); err != nil {
 		return common.Signature{}, err
 	}
-	var sig common.Signature
-	copy(sig[:], bs)
 	return sig, nil
 }
 

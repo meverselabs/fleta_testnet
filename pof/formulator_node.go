@@ -57,6 +57,7 @@ type FormulatorNode struct {
 	requestTimer   *p2p.RequestTimer
 	requestLock    sync.RWMutex
 	blockQ         *queue.SortedQueue
+	blockWaitMap   map[uint32]bool
 	txpool         *txpool.TransactionPool
 	txQ            *queue.ExpireQueue
 	txWaitQ        *queue.LinkedQueue
@@ -87,6 +88,7 @@ func NewFormulatorNode(Config *FormulatorConfig, key key.Key, ndkey key.Key, Net
 		obStatusMap:    map[string]*p2p.Status{},
 		requestTimer:   p2p.NewRequestTimer(nil),
 		blockQ:         queue.NewSortedQueue(),
+		blockWaitMap:   map[uint32]bool{},
 		txpool:         txpool.NewTransactionPool(),
 		txQ:            queue.NewExpireQueue(),
 		txWaitQ:        queue.NewLinkedQueue(),
@@ -127,7 +129,7 @@ func (fr *FormulatorNode) Init() error {
 	fc.Register(types.DefineHashedType("p2p.StatusMessage"), &p2p.StatusMessage{})
 	fc.Register(types.DefineHashedType("p2p.BlockMessage"), &p2p.BlockMessage{})
 	fc.Register(types.DefineHashedType("p2p.RequestMessage"), &p2p.RequestMessage{})
-	fc.Register(types.DefineHashedType("p2p.TransactionMessage"), &p2p.TransactionMessage{})
+	fc.Register(types.DefineHashedType("p2p.TransactionMessage"), []*p2p.TransactionMessage{})
 	fc.Register(types.DefineHashedType("p2p.PeerListMessage"), &p2p.PeerListMessage{})
 	fc.Register(types.DefineHashedType("p2p.RequestPeerListMessage"), &p2p.RequestPeerListMessage{})
 	return nil
@@ -158,8 +160,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 	case 7:
 		WorkerCount = 4
 	case 8:
-		//WorkerCount = 5
-		WorkerCount = 4
+		WorkerCount = 5
 	default:
 		WorkerCount = runtime.NumCPU()/2 + 1
 		if WorkerCount >= runtime.NumCPU() {
@@ -170,6 +171,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 		}
 	}
 
+	WorkerCount = runtime.NumCPU()
 	for i := 0; i < WorkerCount; i++ {
 		go func() {
 			for !fr.isClose {
@@ -220,11 +222,8 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 	go func() {
 		for !fr.isClose {
 			if fr.nm.HasPeer() {
-				msg := &p2p.TransactionMessage{
-					Types:      []uint16{},
-					Txs:        []types.Transaction{},
-					Signatures: [][]common.Signature{},
-				}
+				msg := []*p2p.TransactionMessage{}
+				ChainID := fr.cs.cn.Provider().ChainID()
 				currentSlot := types.ToTimeSlot(fr.cs.cn.Provider().LastTimestamp())
 				for {
 					v := fr.txSendQ.Pop()
@@ -240,14 +239,17 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 							continue
 						}
 					}
-					msg.Types = append(msg.Types, m.Type)
-					msg.Txs = append(msg.Txs, m.Tx)
-					msg.Signatures = append(msg.Signatures, m.Sigs)
-					if len(msg.Types) >= 800 {
+					msg = append(msg, &p2p.TransactionMessage{
+						ChainID:    ChainID,
+						Type:       m.Type,
+						Tx:         m.Tx,
+						Signatures: m.Sigs,
+					})
+					if len(msg) >= 800 {
 						break
 					}
 				}
-				if len(msg.Types) > 0 {
+				if len(msg) > 0 {
 					//log.Println("Send.TransactionMessage", len(msg.Types))
 					fr.broadcastMessage(1, msg)
 				}
@@ -331,6 +333,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					break
 				}
 			}
+			delete(fr.blockWaitMap, b.Header.Height)
 			fr.cleanPool(b)
 			rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockConnected", b.Header.Generator.String(), b.Header.Height, len(b.Transactions))
 
@@ -391,7 +394,7 @@ func (fr *FormulatorNode) AddTx(tx types.Transaction, sigs []common.Signature) e
 	if err != nil {
 		return err
 	}
-	TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
+	TxHash := types.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
 	ctw := fr.cs.cn.Provider().NewLoaderWrapper(1)
 	if ctw.HasTimeSlot(slot, string(TxHash[:])) {
 		return types.ErrUsedTimeSlot
@@ -489,6 +492,9 @@ func (fr *FormulatorNode) addBlock(b *types.Block) error {
 				return chain.ErrFoundForkedBlock
 			}
 		}
+		fr.Lock()
+		fr.blockWaitMap[b.Header.Height] = true
+		fr.Unlock()
 	}
 	return nil
 }
@@ -496,7 +502,7 @@ func (fr *FormulatorNode) addBlock(b *types.Block) error {
 func (fr *FormulatorNode) cleanPool(b *types.Block) {
 	for i, tx := range b.Transactions {
 		t := b.TransactionTypes[i]
-		TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
+		TxHash := types.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
 		fr.txpool.Remove(TxHash, tx)
 		fr.txQ.Remove(string(TxHash[:]))
 	}

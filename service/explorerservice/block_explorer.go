@@ -20,7 +20,6 @@ import (
 
 	"github.com/fletaio/fleta_testnet/common/binutil"
 	"github.com/fletaio/fleta_testnet/common/factory"
-	"github.com/fletaio/fleta_testnet/core/chain"
 	"github.com/fletaio/fleta_testnet/core/types"
 	"github.com/fletaio/fleta_testnet/encoding"
 	"github.com/labstack/echo/v4"
@@ -290,7 +289,7 @@ func (e *BlockExplorer) updateChain(b *types.Block, fc *factory.Factory, insertT
 				name = strs[len(strs)-1]
 			}
 			ti := txInfos{
-				TxHash:    chain.HashTransactionByType(e.provider.ChainID(), t, tx).String(),
+				TxHash:    types.HashTransactionByType(e.provider.ChainID(), t, tx).String(),
 				BlockHash: encoding.Hash(b.Header).String(),
 				Time:      tx.Timestamp(),
 				TxType:    name,
@@ -362,7 +361,7 @@ func (e *BlockExplorer) updateHashs(txn backend.StoreWriter, b *types.Block, fc 
 	for i, tx := range txs {
 		t := b.TransactionTypes[i]
 
-		h := chain.HashTransactionByType(e.provider.ChainID(), t, tx)
+		h := types.HashTransactionByType(e.provider.ChainID(), t, tx)
 		txid := types.TransactionID(b.Header.Height, uint16(i))
 		if err := txn.Set(h[:], []byte(txid)); err != nil {
 			return err

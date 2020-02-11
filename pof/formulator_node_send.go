@@ -1,6 +1,7 @@
 package pof
 
 import (
+	"log"
 	"time"
 
 	"github.com/fletaio/fleta_testnet/common"
@@ -92,7 +93,7 @@ func (fr *FormulatorNode) sendRequestBlockTo(TargetID string, Height uint32, Cou
 	}
 	fr.ms.SendTo(TargetID, nm)
 	for i := uint32(0); i < uint32(Count); i++ {
-		fr.requestTimer.Add(Height+i, 2*time.Second, TargetID)
+		fr.requestTimer.Add(Height+i, 5*time.Second, TargetID)
 	}
 	return nil
 }
@@ -101,15 +102,25 @@ func (fr *FormulatorNode) sendRequestBlockToNode(TargetPubHash common.PublicHash
 	if TargetPubHash == fr.myPublicHash {
 		return nil
 	}
-	//log.Println("sendRequestBlockToNode", TargetPubHash.String(), Height, Count)
-
-	nm := &p2p.RequestMessage{
-		Height: Height,
-		Count:  Count,
+	if Height <= fr.cs.cn.Provider().Height() {
+		return nil
 	}
-	fr.sendMessage(0, TargetPubHash, nm)
+	fr.Lock()
+	_, has := fr.blockWaitMap[Height]
+	fr.Unlock()
+	if has {
+		return nil
+	}
 	for i := uint32(0); i < uint32(Count); i++ {
-		fr.requestTimer.Add(Height+i, 2*time.Second, string(TargetPubHash[:]))
+		if fr.requestTimer.Add(Height+i, 5*time.Second, string(TargetPubHash[:])) {
+			log.Println("sendRequestBlockToNode", TargetPubHash.String(), Height, Count)
+
+			nm := &p2p.RequestMessage{
+				Height: Height,
+				Count:  Count,
+			}
+			fr.sendMessage(0, TargetPubHash, nm)
+		}
 	}
 	return nil
 }

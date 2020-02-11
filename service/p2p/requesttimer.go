@@ -38,9 +38,14 @@ func (rm *RequestTimer) Exist(height uint32) bool {
 }
 
 // Add adds the timer of the request
-func (rm *RequestTimer) Add(height uint32, t time.Duration, value string) {
+func (rm *RequestTimer) Add(height uint32, t time.Duration, value string) bool {
 	rm.Lock()
 	defer rm.Unlock()
+
+	_, has := rm.timerMap[height]
+	if has {
+		return false
+	}
 
 	rm.timerMap[height] = &requestTimerItem{
 		Height:    height,
@@ -53,6 +58,7 @@ func (rm *RequestTimer) Add(height uint32, t time.Duration, value string) {
 		rm.valueMap[value] = heightMap
 	}
 	heightMap[height] = true
+	return true
 }
 
 // RemovesByValue removes requests by the value

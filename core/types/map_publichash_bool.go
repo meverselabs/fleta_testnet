@@ -18,7 +18,7 @@ func init() {
 		}
 		var inErr error
 		item.EachAll(func(pubhash common.PublicHash, value bool) bool {
-			if err := enc.Encode(pubhash); err != nil {
+			if err := enc.EncodeBytes(pubhash[:]); err != nil {
 				inErr = err
 				return false
 			}
@@ -40,8 +40,10 @@ func init() {
 		item := NewPublicHashBoolMap()
 		for i := 0; i < Len; i++ {
 			var pubhash common.PublicHash
-			if err := dec.Decode(&pubhash); err != nil {
+			if bs, err := dec.DecodeBytes(); err != nil {
 				return err
+			} else {
+				copy(pubhash[:], bs)
 			}
 			value, err := dec.DecodeBool()
 			if err != nil {

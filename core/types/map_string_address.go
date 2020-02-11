@@ -23,7 +23,7 @@ func init() {
 				inErr = err
 				return false
 			}
-			if err := enc.Encode(addr); err != nil {
+			if err := enc.EncodeBytes(addr[:]); err != nil {
 				inErr = err
 				return false
 			}
@@ -45,8 +45,10 @@ func init() {
 				return err
 			}
 			var addr common.Address
-			if err := dec.Decode(&addr); err != nil {
+			if bs, err := dec.DecodeBytes(); err != nil {
 				return err
+			} else {
+				copy(addr[:], bs)
 			}
 			item.Put(key, addr)
 		}

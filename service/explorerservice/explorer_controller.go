@@ -9,7 +9,6 @@ import (
 	"github.com/fletaio/fleta_testnet/common/binutil"
 	"github.com/fletaio/fleta_testnet/common/hash"
 	"github.com/fletaio/fleta_testnet/core/backend"
-	"github.com/fletaio/fleta_testnet/core/chain"
 	"github.com/fletaio/fleta_testnet/core/types"
 	"github.com/fletaio/fleta_testnet/encoding"
 )
@@ -133,7 +132,7 @@ func (e *BlockExplorer) txDetailMap(height uint32, txIndex uint16) (map[string]s
 
 	tm := time.Unix(int64(b.Header.Timestamp/uint64(time.Second)), 0)
 	m["Block Timestamp"] = tm.Format("2006-01-02 15:04:05")
-	m["Tx Hash"] = chain.HashTransactionByType(e.provider.ChainID(), t, tx).String()
+	m["Tx Hash"] = types.HashTransactionByType(e.provider.ChainID(), t, tx).String()
 	tm = time.Unix(int64(tx.Timestamp()/uint64(time.Second)), 0)
 	m["Tx TimeStamp"] = tm.Format("2006-01-02 15:04:05")
 
@@ -181,7 +180,7 @@ func (e *BlockExplorer) blockDetailMap(height uint32) (map[string]string, error)
 	txs := []string{}
 	for i, tx := range b.Transactions {
 		t := b.TransactionTypes[i]
-		txs = append(txs, chain.HashTransactionByType(e.provider.ChainID(), t, tx).String())
+		txs = append(txs, types.HashTransactionByType(e.provider.ChainID(), t, tx).String())
 	}
 	m["Transactions"] = txs
 	bs, err := json.Marshal(&m)

@@ -1,3 +1,5 @@
+//go:generate msgp
+
 package types
 
 import (
@@ -41,7 +43,7 @@ func init() {
 				return err
 			}
 			for _, sig := range sigs {
-				if err := enc.Encode(sig); err != nil {
+				if err := enc.EncodeBytes(sig[:]); err != nil {
 					return err
 				}
 			}
@@ -50,7 +52,7 @@ func init() {
 			return err
 		}
 		for _, sig := range item.Signatures {
-			if err := enc.Encode(sig); err != nil {
+			if err := enc.EncodeBytes(sig[:]); err != nil {
 				return err
 			}
 		}
@@ -93,8 +95,10 @@ func init() {
 			sigs := make([]common.Signature, 0, SigLen)
 			for j := 0; j < SigLen; j++ {
 				var sig common.Signature
-				if err := dec.Decode(&sig); err != nil {
+				if bs, err := dec.DecodeBytes(); err != nil {
 					return err
+				} else {
+					copy(sig[:], bs)
 				}
 				sigs = append(sigs, sig)
 			}
@@ -107,8 +111,10 @@ func init() {
 		item.Signatures = make([]common.Signature, 0, SigLen)
 		for j := 0; j < SigLen; j++ {
 			var sig common.Signature
-			if err := dec.Decode(&sig); err != nil {
+			if bs, err := dec.DecodeBytes(); err != nil {
 				return err
+			} else {
+				copy(sig[:], bs)
 			}
 			item.Signatures = append(item.Signatures, sig)
 		}

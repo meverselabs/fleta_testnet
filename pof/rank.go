@@ -14,34 +14,40 @@ import (
 func init() {
 	encoding.Register(Rank{}, func(enc *encoding.Encoder, rv reflect.Value) error {
 		item := rv.Interface().(Rank)
-		if err := enc.Encode(item.Address); err != nil {
+		if err := enc.EncodeBytes(item.Address[:]); err != nil {
 			return err
 		}
-		if err := enc.Encode(item.PublicHash); err != nil {
+		if err := enc.EncodeBytes(item.PublicHash[:]); err != nil {
 			return err
 		}
 		if err := enc.EncodeUint32(item.phase); err != nil {
 			return err
 		}
-		if err := enc.Encode(item.hashSpace); err != nil {
+		if err := enc.EncodeBytes(item.hashSpace[:]); err != nil {
 			return err
 		}
 		return nil
 	}, func(dec *encoding.Decoder, rv reflect.Value) error {
 		item := &Rank{}
-		if err := dec.Decode(&item.Address); err != nil {
+		if bs, err := dec.DecodeBytes(); err != nil {
 			return err
+		} else {
+			copy(item.Address[:], bs)
 		}
-		if err := dec.Decode(&item.PublicHash); err != nil {
+		if bs, err := dec.DecodeBytes(); err != nil {
 			return err
+		} else {
+			copy(item.PublicHash[:], bs)
 		}
 		if v, err := dec.DecodeUint32(); err != nil {
 			return err
 		} else {
 			item.phase = v
 		}
-		if err := dec.Decode(&item.hashSpace); err != nil {
+		if bs, err := dec.DecodeBytes(); err != nil {
 			return err
+		} else {
+			copy(item.hashSpace[:], bs)
 		}
 		rv.Set(reflect.ValueOf(item).Elem())
 		return nil

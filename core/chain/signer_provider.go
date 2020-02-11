@@ -7,8 +7,8 @@ import (
 
 // SignerProvider provides signers of the hash
 type SignerProvider interface {
-	GetSigners(TxHash hash.Hash256) []common.PublicHash
-	UnsafeGetSigners(TxHash hash.Hash256) []common.PublicHash
+	GetSigners(TxHash hash.Hash256) ([]common.Signature, []common.PublicHash)
+	UnsafeGetSigners(TxHash hash.Hash256) ([]common.Signature, []common.PublicHash)
 	Lock()
 	Unlock()
 }

@@ -18,7 +18,7 @@ func init() {
 		}
 		var inErr error
 		item.EachAll(func(addr common.Address, acc Account) bool {
-			if err := enc.Encode(addr); err != nil {
+			if err := enc.EncodeBytes(addr[:]); err != nil {
 				inErr = err
 				return false
 			}
@@ -47,8 +47,10 @@ func init() {
 		item := NewAddressAccountMap()
 		for i := 0; i < Len; i++ {
 			var addr common.Address
-			if err := dec.Decode(&addr); err != nil {
+			if bs, err := dec.DecodeBytes(); err != nil {
 				return err
+			} else {
+				copy(addr[:], bs)
 			}
 			t, err := dec.DecodeUint16()
 			if err != nil {

@@ -20,7 +20,7 @@ func (s *Bank) SendTx(tx types.Transaction, sigs []common.Signature) (hash.Hash2
 		return hash.Hash256{}, err
 	}
 
-	TxHash := chain.HashTransactionByType(s.cn.ChainID(), t, tx)
+	TxHash := types.HashTransactionByType(s.cn.ChainID(), t, tx)
 
 	ch := make(chan string)
 	s.Lock()

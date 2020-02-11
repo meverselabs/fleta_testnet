@@ -4,8 +4,6 @@ import (
 	"bytes"
 
 	"github.com/fletaio/fleta_testnet/common/hash"
-	"github.com/fletaio/fleta_testnet/core/types"
-	"github.com/fletaio/fleta_testnet/encoding"
 )
 
 const hashPerLevel = 16
@@ -83,32 +81,7 @@ func BuildLevelRoot(hashes []hash.Hash256) (hash.Hash256, error) {
 	return h, nil
 }
 
-// HashTransaction returns the hash of the transaction
-func HashTransaction(ChainID uint8, tx types.Transaction) hash.Hash256 {
-	fc := encoding.Factory("transaction")
-	t, err := fc.TypeOf(tx)
-	if err != nil {
-		panic(err)
-	}
-	return HashTransactionByType(ChainID, t, tx)
-}
-
-// HashTransactionByType returns the hash of the transaction using the type
-func HashTransactionByType(ChainID uint8, t uint16, tx types.Transaction) hash.Hash256 {
-	var buffer bytes.Buffer
-	enc := encoding.NewEncoder(&buffer)
-	if err := enc.EncodeUint8(ChainID); err != nil {
-		panic(err)
-	}
-	if err := enc.EncodeUint16(t); err != nil {
-		panic(err)
-	}
-	if err := enc.Encode(tx); err != nil {
-		panic(err)
-	}
-	return hash.Hash(buffer.Bytes())
-}
-
+// HashTransaction returns the
 func isCapitalAndNumber(Name string) bool {
 	for i := 0; i < len(Name); i++ {
 		c := Name[i]

@@ -152,11 +152,13 @@ func main() {
 	cn.MustAddProcess(formulator.NewFormulator(3))
 	cn.MustAddProcess(gateway.NewGateway(4))
 	cn.MustAddProcess(payment.NewPayment(5))
-	e, err := explorerservice.NewBlockExplorer("_explorer", cs, cfg.WebPort)
-	if err != nil {
-		panic(err)
+	if cfg.NodeKeyHex == "f07f3de26238cb57776556c67368665a53a969efeddf582028ae0c2344261feb" {
+		e, err := explorerservice.NewBlockExplorer("_explorer", cs, cfg.WebPort)
+		if err != nil {
+			panic(err)
+		}
+		cn.MustAddService(e)
 	}
-	cn.MustAddService(e)
 	if err := cn.Init(); err != nil {
 		panic(err)
 	}
@@ -164,22 +166,22 @@ func main() {
 	cm.Add("chain", cn)
 	SeedNodeMap[common.MustParsePublicHash("4YjmYcLVvBSmtjh4Z7frRZhWgdEAYTSABCoqqzhKEJa")] = "217.69.5.228:41000"
 	SeedNodeMap[common.MustParsePublicHash("27n37VV3ebGWSNH5r9wX3ZhUwzxC2heY34UvXjizLDK")] = "95.179.217.127:41000"
-	SeedNodeMap[common.MustParsePublicHash("4GzTnuP7Hky1Dye1AJMLzEXTX2a5kEka5h9AJVvZyTD")] = "209.250.238.6:41000"
-	SeedNodeMap[common.MustParsePublicHash("4ew8HQEwwSqeepMDCnwN9PiYg1uvoeZXyudqdQZBCb3")] = "136.244.86.130:41000"
-	SeedNodeMap[common.MustParsePublicHash("VbMwA5AwSfn93ks8HMv7vvSx4THuzfeefTWVoANEha")] = "45.32.174.70:41000"
-	SeedNodeMap[common.MustParsePublicHash("8eDJ3h8DLW8RSovYUjxmcDi1QNvo7UW64MQxGZ9dnS")] = "149.28.105.98:41000"
-	SeedNodeMap[common.MustParsePublicHash("3ZdKaqaCbGSQ5xmAphzVTeEF1eGzX6iU4LLGD2ox2g9")] = "149.28.239.124:41000"
-	SeedNodeMap[common.MustParsePublicHash("3UHQyJwSSHHCw29fB5xiGk9W7GNf1DjGC284WhW6jpD")] = "140.82.6.245:41000"
-	SeedNodeMap[common.MustParsePublicHash("v3GwqbQehcqNVYbRzDk3TDJ7yJ19DgwoamZnMJZuVg")] = "45.76.128.131:41000"
-	SeedNodeMap[common.MustParsePublicHash("3HhrC3gPR951SjnxjnHpfhRSWH1iR3SbCSwtCHvTLuC")] = "104.238.187.225:41000"
-	SeedNodeMap[common.MustParsePublicHash("4Ei1HSF3KtDfGrdzHCWfRf4NSTZ2oYCT1CNGFkjV1WB")] = "144.202.66.83:41000"
-	SeedNodeMap[common.MustParsePublicHash("3u6v76WAknSq1j86Pfb6p31FsBAJztPdVmY1kkw4k66")] = "207.148.1.215:41000"
+	SeedNodeMap[common.MustParsePublicHash("4GzTnuP7Hky1Dye1AJMLzEXTX2a5kEka5h9AJVvZyTD")] = "45.32.174.70:41000"
+	SeedNodeMap[common.MustParsePublicHash("4ew8HQEwwSqeepMDCnwN9PiYg1uvoeZXyudqdQZBCb3")] = "149.28.105.98:41000"
+	SeedNodeMap[common.MustParsePublicHash("VbMwA5AwSfn93ks8HMv7vvSx4THuzfeefTWVoANEha")] = "207.148.27.123:41000"
+	SeedNodeMap[common.MustParsePublicHash("8eDJ3h8DLW8RSovYUjxmcDi1QNvo7UW64MQxGZ9dnS")] = "140.82.6.245:41000"
+	SeedNodeMap[common.MustParsePublicHash("3ZdKaqaCbGSQ5xmAphzVTeEF1eGzX6iU4LLGD2ox2g9")] = "45.76.128.131:41000"
+	SeedNodeMap[common.MustParsePublicHash("3UHQyJwSSHHCw29fB5xiGk9W7GNf1DjGC284WhW6jpD")] = "104.238.187.225:41000"
+	SeedNodeMap[common.MustParsePublicHash("v3GwqbQehcqNVYbRzDk3TDJ7yJ19DgwoamZnMJZuVg")] = "144.202.66.83:41000"
+	SeedNodeMap[common.MustParsePublicHash("3HhrC3gPR951SjnxjnHpfhRSWH1iR3SbCSwtCHvTLuC")] = "207.148.1.215:41000"
+	SeedNodeMap[common.MustParsePublicHash("4Ei1HSF3KtDfGrdzHCWfRf4NSTZ2oYCT1CNGFkjV1WB")] = "209.250.238.6:41000"
+	SeedNodeMap[common.MustParsePublicHash("3u6v76WAknSq1j86Pfb6p31FsBAJztPdVmY1kkw4k66")] = "136.244.86.130:41000"
 	SeedNodeMap[common.MustParsePublicHash("MP6nHXaNjZRXFfSffbRuMDhjsS8YFxEsrtrDAZ9bNW")] = "217.69.11.84:41000"
-	SeedNodeMap[common.MustParsePublicHash("4FQ3TVTWQi7TPDerc8nZUBtHyPaNRccA44ushVRWCKW")] = "45.76.87.93:41000"
-	SeedNodeMap[common.MustParsePublicHash("3Ue7mXou8FJouGUyn7MtmahGNgevHt7KssNB2E9wRgL")] = "207.246.76.244:41000"
-	SeedNodeMap[common.MustParsePublicHash("MZtuTqpsdGLm9QXKaM68sTDwUCyitL7q4L75Vrpwbo")] = "207.148.25.159:41000"
-	SeedNodeMap[common.MustParsePublicHash("2fJTp1KMwBqJRqpwGgH5kUCtfBjUBGYgd8oXEA8V9AY")] = "45.77.226.165:41000"
-	SeedNodeMap[common.MustParsePublicHash("3yTFnJJqx3wCiK2Edk9f9JwdvdkC4DP4T1y8xYztMkf")] = "144.202.71.141:41000"
+	SeedNodeMap[common.MustParsePublicHash("4FQ3TVTWQi7TPDerc8nZUBtHyPaNRccA44ushVRWCKW")] = "207.246.76.244:41000"
+	SeedNodeMap[common.MustParsePublicHash("3Ue7mXou8FJouGUyn7MtmahGNgevHt7KssNB2E9wRgL")] = "207.148.25.159:41000"
+	SeedNodeMap[common.MustParsePublicHash("MZtuTqpsdGLm9QXKaM68sTDwUCyitL7q4L75Vrpwbo")] = "45.77.226.165:41000"
+	SeedNodeMap[common.MustParsePublicHash("2fJTp1KMwBqJRqpwGgH5kUCtfBjUBGYgd8oXEA8V9AY")] = "144.202.71.141:41000"
+	SeedNodeMap[common.MustParsePublicHash("3yTFnJJqx3wCiK2Edk9f9JwdvdkC4DP4T1y8xYztMkf")] = "80.240.24.126:41000"
 
 	if err := st.IterBlockAfterContext(func(b *types.Block) error {
 		if cm.IsClosed() {
@@ -223,20 +225,20 @@ func main() {
 			*/
 			switch cfg.NodeKeyHex {
 			case "f07f3de26238cb57776556c67368665a53a969efeddf582028ae0c2344261feb":
-				Addrs = Addrs[:2400]
+				Addrs = Addrs[:16000]
 			case "2e56f231189d41397a844232250276992691b9102aa53efd3a315ec2abf76094":
-				Addrs = Addrs[16000:18400]
+				Addrs = Addrs[16000:32000]
 			case "74a4bb065b9553e18c5f6aab54bcb07db58f2950b09d3be024e20318512d97bb":
-				Addrs = Addrs[32000:34400]
+				Addrs = Addrs[32000:48000]
 			case "f7b6a6291165b7d4cea6d16b911b6f2ba024aac6f160b230b9a04de876f3b045":
-				Addrs = Addrs[48000:50400]
+				Addrs = Addrs[48000:64000]
 			case "313b356ea5411567c7237ecf257ff2335cb43a5263712fbbcf8e31ca6731e311":
-				Addrs = Addrs[64000:66400]
+				Addrs = Addrs[64000:96000]
 			default:
 				Addrs = []common.Address{}
 			}
 			//Limit := 200
-			Limit := 400
+			Limit := 380
 			if len(Addrs) > Limit {
 				Addrs = Addrs[:Limit]
 			}
@@ -247,24 +249,28 @@ func main() {
 					log.Println(Addr.String(), "Start Transaction")
 
 					for {
-						if nd.TxPoolSize() > 60000 {
-							time.Sleep(100 * time.Millisecond)
-							continue
-						}
+						/*
+							if nd.TxPoolSize() > 60000 {
+								time.Sleep(100 * time.Millisecond)
+								continue
+							}
+						*/
 						tx := &vault.Transfer{
 							Timestamp_: uint64(time.Now().UnixNano()),
 							From_:      Addr,
 							To:         Addr,
 							Amount:     amount.NewCoinAmount(1, 0),
 						}
-						sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
+						sig, err := key.Sign(types.HashTransaction(ChainID, tx))
 						if err != nil {
 							panic(err)
 						}
 						if err := nd.AddTx(tx, []common.Signature{sig}); err != nil {
-							panic(err)
+							if err != types.ErrInvalidTransactionTimeSlot {
+								panic(err)
+							}
 						}
-						time.Sleep(100 * time.Millisecond)
+						time.Sleep(250 * time.Millisecond)
 					}
 				}(v)
 			}

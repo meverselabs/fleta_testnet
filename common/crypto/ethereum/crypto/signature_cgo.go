@@ -27,19 +27,8 @@ import (
 )
 
 // Ecrecover returns the uncompressed public key that created the given signature.
-func Ecrecover(hash, sig []byte) ([]byte, error) {
-	return secp256k1.RecoverPubkey(hash, sig)
-}
-
-// SigToPub returns the public key that created the given signature.
-func SigToPub(hash, sig []byte) (*ecdsa.PublicKey, error) {
-	s, err := Ecrecover(hash, sig)
-	if err != nil {
-		return nil, err
-	}
-
-	x, y := elliptic.Unmarshal(S256(), s)
-	return &ecdsa.PublicKey{Curve: S256(), X: x, Y: y}, nil
+func Ecrecover(hash, sig, out []byte) error {
+	return secp256k1.RecoverPubkey(hash, sig, out)
 }
 
 // Sign calculates an ECDSA signature.
@@ -50,13 +39,13 @@ func SigToPub(hash, sig []byte) (*ecdsa.PublicKey, error) {
 // solution is to hash any input before calculating the signature.
 //
 // The produced signature is in the [R || S || V] format where V is 0 or 1.
-func Sign(hash []byte, prv *ecdsa.PrivateKey) (sig []byte, err error) {
+func Sign(hash []byte, prv *ecdsa.PrivateKey, sig []byte) (err error) {
 	if len(hash) != 32 {
-		return nil, fmt.Errorf("hash is required to be exactly 32 bytes (%d)", len(hash))
+		return fmt.Errorf("hash is required to be exactly 32 bytes (%d)", len(hash))
 	}
 	seckey := PaddedBigBytes(prv.D, prv.Params().BitSize/8)
 	defer zeroBytes(seckey)
-	return secp256k1.Sign(hash, seckey)
+	return secp256k1.Sign(hash, seckey, sig)
 }
 
 // VerifySignature checks that the given public key created signature over hash.
@@ -76,8 +65,8 @@ func DecompressPubkey(pubkey []byte) (*ecdsa.PublicKey, error) {
 }
 
 // CompressPubkey encodes a public key to the 33-byte compressed format.
-func CompressPubkey(pubkey *ecdsa.PublicKey) []byte {
-	return secp256k1.CompressPubkey(pubkey.X, pubkey.Y)
+func CompressPubkey(pubkey *ecdsa.PublicKey, out []byte) {
+	secp256k1.CompressPubkey(pubkey.X, pubkey.Y, out)
 }
 
 // S256 returns an instance of the secp256k1 curve.

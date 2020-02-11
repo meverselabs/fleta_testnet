@@ -30,6 +30,15 @@ func (q *LinkedQueue) Size() int {
 	return len(q.keyMap)
 }
 
+// Has returns the key is exist of not
+func (q *LinkedQueue) Has(Key hash.Hash256) bool {
+	q.Lock()
+	defer q.Unlock()
+
+	_, has := q.keyMap[Key]
+	return has
+}
+
 // Push inserts the item with the key at the bottom of the queue
 func (q *LinkedQueue) Push(Key hash.Hash256, item interface{}) bool {
 	q.Lock()

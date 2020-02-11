@@ -19,7 +19,9 @@ require (
 	github.com/labstack/echo/v4 v4.1.11
 	github.com/mr-tron/base58 v1.1.2
 	github.com/petar/GoLLRB v0.0.0-20190514000832-33fb24c13b99
+	github.com/philhofer/fwd v1.0.0 // indirect
 	github.com/pkg/errors v0.8.1
+	github.com/pkg/profile v1.4.0
 	github.com/satori/go.uuid v1.2.0
 	github.com/siddontang/ledisdb v0.0.0-20190202134119-8ceb77e66a92
 	github.com/spf13/cobra v0.0.5
@@ -30,6 +32,8 @@ require (
 	github.com/tidwall/grect v0.0.0-20161006141115-ba9a043346eb
 	github.com/tidwall/match v1.0.1
 	github.com/tidwall/rtree v0.0.0-20180113144539-6cd427091e0e
+	github.com/tinylib/msgp v1.1.1
+	github.com/ttacon/chalk v0.0.0-20160626202418-22c06c80ed31 // indirect
 	github.com/urfave/cli v1.20.0
 	github.com/vmihailenco/msgpack v4.0.4+incompatible
 	github.com/xujiajun/nutsdb v0.4.0

@@ -888,7 +888,7 @@ func (st *Store) IterBlockAfterContext(fn func(b *types.Block) error) error {
 						st.timeSlotMap[slot] = mp
 					}
 					t := b.TransactionTypes[i]
-					TxHash := HashTransactionByType(st.chainID, t, tx)
+					TxHash := types.HashTransactionByType(st.chainID, t, tx)
 					mp[string(TxHash[:])] = true
 				}
 			}

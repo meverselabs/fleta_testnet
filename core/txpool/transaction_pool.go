@@ -84,23 +84,23 @@ func (tp *TransactionPool) Get(TxHash hash.Hash256) *PoolItem {
 }
 
 // GetSigners returns the pool item signers of the hash
-func (tp *TransactionPool) GetSigners(TxHash hash.Hash256) []common.PublicHash {
+func (tp *TransactionPool) GetSigners(TxHash hash.Hash256) ([]common.Signature, []common.PublicHash) {
 	tp.Lock()
 	defer tp.Unlock()
 
 	if item, has := tp.txhashMap[TxHash]; !has {
-		return nil
+		return nil, nil
 	} else {
-		return item.Signers
+		return item.Signatures, item.Signers
 	}
 }
 
 // UnsafeGetSigners returns the pool item signers of the hash
-func (tp *TransactionPool) UnsafeGetSigners(TxHash hash.Hash256) []common.PublicHash {
+func (tp *TransactionPool) UnsafeGetSigners(TxHash hash.Hash256) ([]common.Signature, []common.PublicHash) {
 	if item, has := tp.txhashMap[TxHash]; !has {
-		return nil
+		return nil, nil
 	} else {
-		return item.Signers
+		return item.Signatures, item.Signers
 	}
 }
 
