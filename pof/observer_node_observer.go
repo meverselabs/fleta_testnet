@@ -371,6 +371,12 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 			return ErrInvalidVote
 		}
 		bh := encoding.Hash(msg.Block.Header)
+		if br.BlockGenMessageWait != nil {
+			if bh != encoding.Hash(br.BlockGenMessageWait.Block.Header) {
+				rlog.Println(msg.Block.Header.Generator.String(), "if bh != encoding.Hash(br.BlockGenMessageWait.Block.Header) {")
+				return ErrFoundForkedBlockGen
+			}
+		}
 		if pubkey, err := common.RecoverPubkey(bh, msg.GeneratorSignature); err != nil {
 			return err
 		} else if Signer := common.NewPublicHash(pubkey); Signer != Top.PublicHash {
@@ -596,7 +602,6 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 				TransactionTypes:      br.BlockGenMessage.Block.TransactionTypes,
 				Transactions:          br.BlockGenMessage.Block.Transactions,
 				TransactionSignatures: br.BlockGenMessage.Block.TransactionSignatures,
-				TransactionResults:    br.BlockGenMessage.Block.TransactionResults,
 				Signatures:            append([]common.Signature{br.BlockGenMessage.GeneratorSignature}, sigs...),
 			}
 			if err := ob.cs.ct.ConnectBlockWithContext(b, br.Context); err != nil {
@@ -651,7 +656,7 @@ func (ob *ObserverNode) handleObserverMessage(SenderPublicHash common.PublicHash
 				}
 			}
 			if debug.DEBUG {
-				rlog.Println(cp.Height(), "BlockConnected", b.Header.Generator.String(), ob.round.RoundState, msg.BlockVote.Header.Height, (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond))
+				rlog.Println(cp.Height(), "BlockConnected", b.Header.Generator.String(), ob.round.RoundState, msg.BlockVote.Header.Height, (time.Now().UnixNano()-ob.prevRoundEndTime)/int64(time.Millisecond), len(b.Transactions))
 			}
 
 			NextHeight := ob.round.TargetHeight + 1

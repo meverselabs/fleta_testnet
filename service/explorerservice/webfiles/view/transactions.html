@@ -1,0 +1,121 @@
+<%define "headScript"%>
+<script>
+    function getPage(start) {
+        (function (start) {
+            var startIndex = start+1
+            $.ajax({
+                url : "/data/paginationTxs.data",
+                dataType : 'json',
+                data : {
+                    start : start
+                },
+                success : function (data) {
+                    var $dataBody = $("#dataBody");
+                    putData($dataBody, data.aaData)
+                    data.iTotalRecords
+                    var start = startIndex
+                    pagination(start, data.iTotalRecords)
+                }
+            })
+        })(start)
+    }
+
+    function putData ($dataBody, data) {
+        $dataBody.empty()
+        var eo = 0;
+        for (var i = 0 ; i < data.length ; i++) {
+            var t = $("#txTemplate").html();
+            t = t.replace(/{oddeven}/g, (eo++%2==0?"even":"odd"))
+
+            if (data[i].Time) {
+                var d = new Date(data[i].Time/1000000)
+                data[i].Time = formatDate(d, "yyyy-MM-dd hh:mm:ss")
+                var time = data[i].Time.split(" ")
+                if (time.length == 2) {
+                    data[i].ShotTime = time[1]
+                }
+            }
+
+            if (data[i].TxType) {
+                data[i].TxTypeNoDot = data[i].TxType.replace(/\./g, "")
+            }
+
+            for (var k in data[i]) {
+                if (data[i].hasOwnProperty(k)) {
+                    var v = data[i][k]
+                    t = t.replace(new RegExp("{"+k+"}", 'g'), v)
+                }
+            }
+            $dataBody.append(t)
+        }
+    }
+    var v = <%index . "txsData"%>;
+
+    $(function () {
+        var $dataBody = $("#dataBody");
+        putData ($dataBody, v);
+        startHeight = '0<%index . "txLength"%>'-1;
+        pagination(0, startHeight);
+    })
+</script>
+<%end%>
+
+
+<%define "pageTitle"%>Transactions<%end%>
+
+<%define "fletaBody"%>
+    <div class="row">
+        <div class="col-xl-12">
+    
+            <!--begin:: Widgets/Top Products-->
+            <div class="portlet">
+                <div class="portlet_body no-title-body">
+                    <!--begin: Datatable -->
+                    <table class="table fleta-table" id="fleta_pagination_blocks">
+                        <thead>
+                            <tr>
+                                <th>TxHash</th>
+                                <th>BlockHash</th>
+                                <th>ChainID</th>
+                                <th>Time</th>
+                                <th>Type</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="dataBody"></tbody>
+                    </table>
+                    <table style="display: none;">
+                        <tbody id="txTemplate">
+                            <tr role="row" class="{oddeven}">
+                                <td tabindex="0">
+                                    <a href="/transactionDetail?hash={TxHash}">
+                                        <span title="{TxHash}" class="blockHashSpan">{TxHash}</span>
+                                    </a>
+                                </td>
+                                <td>
+                                    <a href="/blockDetail?hash={BlockHash}">
+                                        <span title="{BlockHash}" class="blockHashSpan">{BlockHash}</span>
+                                        </a>
+                                </td>
+                                <td>{ChainID}</td>
+                                <td><span title="{Time}">{Time}</span></td>
+                                <td><span class="badge {TxTypeNoDot}">{TxType}</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <%template "pagination" .%>
+                    <!--end: Datatable -->
+                </div>
+            </div>
+    
+            <!--end:: Widgets/Top Products-->
+        </div>
+    
+    </div>
+    
+<!--End::Section-->
+<%end%>
+
+<%define "FooterIncludeScript"%>
+<script src="/resource/js/common.js"></script>
+<%end%>

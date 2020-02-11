@@ -1,0 +1,115 @@
+<%define "headScript"%>
+<script >
+    function getPage(start) {
+        $.ajax({
+            url : "/data/paginationBlocks.data",
+            dataType : 'json',
+            data : {
+                start : start
+            },
+            success : function (data) {
+                var $dataBody = $("#dataBody");
+                putData($dataBody, data.aaData)
+                var start = data.aaData[0]["Block Height"];
+                pagination(start, data.iTotalRecords, -1)
+            }
+        })
+    }
+
+    function putData ($dataBody, data) {
+        $dataBody.empty()
+        var eo = 0;
+        for (var i = 0 ; i < data.length ; i++) {
+            var t = $("#rowTemplate").html();
+            t = t.replace(/{oddeven}/g, (eo++%2==0?"even":"odd"))
+
+            if (data[i].Time) {
+                var time = data[i].Time.split(" ")
+                if (time.length == 2) {
+                    data[i].ShotTime = time[1]
+                }
+            }
+
+            if (data[i].Status == 1) {
+                data[i].Status = "success"
+            } else {
+                data[i].Status = "fail"
+            }
+
+            for (var k in data[i]) {
+                if (data[i].hasOwnProperty(k)) {
+                    var v = data[i][k]
+                    t = t.replace(new RegExp("{"+k+"}", 'g'), v)
+                }
+            }
+            $dataBody.append(t)
+        }
+    }
+    var v = <%index . "blockData"%>;
+
+    $(function () {
+        var $dataBody = $("#dataBody");
+        putData ($dataBody, v);
+        startHeight = v[0]["Block Height"];
+        pagination(startHeight, startHeight, -1);
+    })
+</script>
+<%end%>
+
+<%define "pageTitle"%>Blocks<%end%>
+
+
+<%define "fletaBody"%>
+<div class="row">
+    <div class="col-xl-12">
+        <!--begin:: Widgets/Top Products-->
+        <div class="portlet">
+            <div class="portlet_body no-title-body">
+                <!--begin: Datatable -->
+                <table class="table fleta-table" id="fleta_pagination_blocks">
+                    <thead>
+                        <tr>
+                            <th>Block Height</th>
+                            <th>Block Hash</th>
+                            <th>Time</th>
+                            <th>Status</th>
+                            <th>Txs</th>
+                            <th>Formulator</th>
+                            <th>TimeoutCount</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="dataBody">
+                    </tbody>
+                    
+                </table>
+                <table style="display: none;">
+                    <tbody id="rowTemplate" >
+                    <tr role="row" class="{oddeven}">
+                        <td><a href="/blockDetail?height={Block Height}" title="{Block Hash}"target="_BLANK">{Block Height}</a></td>
+                        <td><a href="/blockDetail?hash={Block Hash}" title="{Block Hash}"target="_BLANK">{Block Hash}</a></td>
+                        <td><span title="{Time}">{ShotTime}</span></td>
+                        <td><span class="badge badge-{Status}">{Status}</span></td>
+                        <td>{Txs}</td>
+                        <td>{Formulator}</td>
+                        <td>{TimeoutCount}</td>
+                    </tr>
+                    </tbody>
+                </table>
+                <%template "pagination" .%>
+                <!--end: Datatable -->
+            </div>
+        </div>
+
+        <!--end:: Widgets/Top Products-->
+    </div>
+
+</div>
+
+<!--End::Section-->
+<%end%>
+
+
+<%define "FooterIncludeScript"%>
+    <script src="/resource/js/common.js"></script>
+<%end%>

@@ -149,20 +149,18 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 
 	WorkerCount := 1
 	switch runtime.NumCPU() {
-	case 3:
-		WorkerCount = 2
 	case 4:
 		WorkerCount = 2
 	case 5:
-		WorkerCount = 3
+		WorkerCount = 2
 	case 6:
-		WorkerCount = 4
+		WorkerCount = 3
 	case 7:
-		WorkerCount = 5
+		WorkerCount = 4
 	case 8:
-		WorkerCount = 6
+		WorkerCount = 5
 	default:
-		WorkerCount = runtime.NumCPU()/2 + 2
+		WorkerCount = runtime.NumCPU()/2 + 1
 		if WorkerCount >= runtime.NumCPU() {
 			WorkerCount = runtime.NumCPU() - 1
 		}
@@ -170,11 +168,14 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 			WorkerCount = 1
 		}
 	}
+
+	WorkerCount = runtime.NumCPU()
 	for i := 0; i < WorkerCount; i++ {
 		go func() {
 			for !fr.isClose {
 				Count := 0
 				ctw := fr.cs.cn.Provider().NewLoaderWrapper(1)
+				currentSlot := types.ToTimeSlot(fr.cs.cn.Provider().LastTimestamp())
 				for !fr.isClose {
 					v := fr.txWaitQ.Pop()
 					if v == nil {
@@ -186,8 +187,20 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 						break
 					}
 					item := v.(*p2p.TxMsgItem)
+
+					slot := types.ToTimeSlot(item.Tx.Timestamp())
+					if currentSlot > 0 {
+						if slot < currentSlot-1 {
+							continue
+						} else if slot > currentSlot+10 {
+							continue
+						}
+					}
+					if ctw.HasTimeSlot(slot, string(item.TxHash[:])) {
+						continue
+					}
 					if err := fr.addTx(ctw, item.TxHash, item.Type, item.Tx, item.Sigs); err != nil {
-						if err != p2p.ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrExistTransactionSeq && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
+						if err != p2p.ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrTransactionPoolOverflowed && err != types.ErrUsedTimeSlot && err != types.ErrInvalidTransactionTimeSlot {
 							rlog.Println("TransactionError", item.TxHash.String(), err.Error())
 							if len(item.PeerID) > 0 {
 								fr.nm.AddBadPoint(item.PeerID, 1)
@@ -212,12 +225,21 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 					Txs:        []types.Transaction{},
 					Signatures: [][]common.Signature{},
 				}
+				currentSlot := types.ToTimeSlot(fr.cs.cn.Provider().LastTimestamp())
 				for {
 					v := fr.txSendQ.Pop()
 					if v == nil {
 						break
 					}
 					m := v.(*p2p.TxMsgItem)
+					slot := types.ToTimeSlot(m.Tx.Timestamp())
+					if currentSlot > 0 {
+						if slot < currentSlot-1 {
+							continue
+						} else if slot > currentSlot+10 {
+							continue
+						}
+					}
 					msg.Types = append(msg.Types, m.Type)
 					msg.Txs = append(msg.Txs, m.Tx)
 					msg.Signatures = append(msg.Signatures, m.Sigs)
@@ -322,6 +344,12 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 			fr.cleanPool(b)
 			rlog.Println("Formulator", fr.Config.Formulator.String(), "BlockConnected", b.Header.Generator.String(), b.Header.Height, len(b.Transactions))
 
+			txs := fr.txpool.Clean(types.ToTimeSlot(b.Header.Timestamp))
+			svcs := fr.cs.cn.Services()
+			for _, s := range svcs {
+				s.OnTransactionInPoolExpired(txs)
+			}
+
 			fr.lastReqLock.Lock()
 			if fr.lastReqMessage != nil {
 				if b.Header.Height <= fr.lastReqMessage.TargetHeight+fr.cs.maxBlocksPerFormulator {
@@ -356,8 +384,18 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 	}
 }
 
-// AddTx adds tx to txpool that only have valid signatures
+// AddTx adds tx to txpool
 func (fr *FormulatorNode) AddTx(tx types.Transaction, sigs []common.Signature) error {
+	currentSlot := types.ToTimeSlot(fr.cs.cn.Provider().LastTimestamp())
+	slot := types.ToTimeSlot(tx.Timestamp())
+	if currentSlot > 0 {
+		if slot < currentSlot-1 {
+			return types.ErrInvalidTransactionTimeSlot
+		} else if slot > currentSlot+10 {
+			return types.ErrInvalidTransactionTimeSlot
+		}
+	}
+
 	fc := encoding.Factory("transaction")
 	t, err := fc.TypeOf(tx)
 	if err != nil {
@@ -365,6 +403,10 @@ func (fr *FormulatorNode) AddTx(tx types.Transaction, sigs []common.Signature) e
 	}
 	TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
 	ctw := fr.cs.cn.Provider().NewLoaderWrapper(1)
+	if ctw.HasTimeSlot(slot, string(TxHash[:])) {
+		return types.ErrUsedTimeSlot
+	}
+
 	if err := fr.addTx(ctw, TxHash, t, tx, sigs); err != nil {
 		return err
 	}
@@ -377,42 +419,14 @@ func (fr *FormulatorNode) AddTx(tx types.Transaction, sigs []common.Signature) e
 	return nil
 }
 
-// PushTx pushes transaction
-func (fr *FormulatorNode) PushTx(tx types.Transaction, sigs []common.Signature) error {
-	fc := encoding.Factory("transaction")
-	t, err := fc.TypeOf(tx)
-	if err != nil {
-		return err
-	}
-	TxHash := chain.HashTransactionByType(fr.cs.cn.Provider().ChainID(), t, tx)
-	if !fr.txpool.IsExist(TxHash) {
-		fr.txWaitQ.Push(TxHash, &p2p.TxMsgItem{
-			TxHash: TxHash,
-			Type:   t,
-			Tx:     tx,
-			Sigs:   sigs,
-		})
-	}
-	return nil
-}
-
 func (fr *FormulatorNode) addTx(ctw types.LoaderWrapper, TxHash hash.Hash256, t uint16, tx types.Transaction, sigs []common.Signature) error {
 	/*
 		if fr.txpool.Size() > 65535 {
 			return txpool.ErrTransactionPoolOverflowed
 		}
 	*/
-	cp := fr.cs.cn.Provider()
 	if fr.txpool.IsExist(TxHash) {
 		return txpool.ErrExistTransaction
-	}
-	if atx, is := tx.(chain.AccountTransaction); is {
-		seq := cp.Seq(atx.From())
-		if atx.Seq() <= seq {
-			return txpool.ErrPastSeq
-		} else if atx.Seq() > seq+100 {
-			return txpool.ErrTooFarSeq
-		}
 	}
 	signers := make([]common.PublicHash, 0, len(sigs))
 	for _, sig := range sigs {
@@ -450,13 +464,16 @@ func (fr *FormulatorNode) OnTimerExpired(height uint32, value string) {
 // OnItemExpired is called when the item is expired
 func (fr *FormulatorNode) OnItemExpired(Interval time.Duration, Key string, Item interface{}, IsLast bool) {
 	item := Item.(*p2p.TxMsgItem)
-	cp := fr.cs.cn.Provider()
-	if atx, is := item.Tx.(chain.AccountTransaction); is {
-		seq := cp.Seq(atx.From())
-		if atx.Seq() <= seq {
+	currentSlot := types.ToTimeSlot(fr.cs.cn.Provider().LastTimestamp())
+	slot := types.ToTimeSlot(item.Tx.Timestamp())
+	if currentSlot > 0 {
+		if slot < currentSlot-1 {
+			return
+		} else if slot > currentSlot+10 {
 			return
 		}
 	}
+
 	fr.txSendQ.Push(item)
 	if IsLast {
 		fr.txpool.Remove(item.TxHash, item.Tx)

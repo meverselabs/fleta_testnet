@@ -1,0 +1,71 @@
+<%define "base.html"%>
+<!DOCTYPE html>
+
+<html lang="en">
+
+	<head>
+		<meta charset="utf-8" />
+		<title>FLETA Block Explorer | <%template "pageTitle" .%></title>
+		<meta name="description" content="FLETA Block Explorer">
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, shrink-to-fit=no">
+
+		<script src="/resource/js/jquery-2.2.0.min.js"></script>
+		<script src="/resource/js/d3.v3.min.js"></script>
+
+		<script src="/resource/js/sign/common.js"></script>
+		<script src="/resource/js/sign/crypto.min.js"></script>
+		<script src="/resource/js/sign/sha256.min.js"></script>
+
+		<%template "headScript" .%>
+
+		<script src="https://ajax.googleapis.com/ajax/libs/webfont/1.6.16/webfont.js"></script>
+		<script>
+			WebFont.load({
+				google: {"families":["Poppins:300,400,500,600,700","Roboto:300,400,500,600,700"]},
+				active: function() {
+					sessionStorage.fonts = true;
+				}
+			});
+		</script>
+
+		<link href="/resource/css/preset.css" rel="stylesheet" type="text/css" />
+		<link href="/resource/css/layout.css" rel="stylesheet" type="text/css" />
+		<link href="/resource/css/color.css" rel="stylesheet" type="text/css" />
+		<link href="/resource/css/custom.css" rel="stylesheet" type="text/css" />
+
+		<link rel="shortcut icon" href="/resource/images/favicon.ico" />
+	</head>
+
+	<body class="">
+
+		<div class="root page">
+
+            <%template "Header" .%>
+
+			<div class="desktop body">
+
+                <%template "LeftAside" .%>
+				<div class="wrapper">
+
+					<div class="subheader ">
+						<div class="flex">
+							<h3 class="subheader_title "><%template "pageTitle" .%></h3>
+						</div>
+					</div>
+
+					<div class="content">
+                        <%template "fletaBody" .%>
+					</div>
+				</div>
+			</div>
+
+
+			<%template "Footer" .%>
+		</div>
+
+        <%template "FooterIncludeScript" .%>
+
+	</body>
+
+</html>
+<%end%>

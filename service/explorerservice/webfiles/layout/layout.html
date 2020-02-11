@@ -1,0 +1,140 @@
+<%define "Header"%>
+<header id="header" class="header">
+    <div class="container">
+        <div class="stack">
+            <div class="brand">
+                <div class="floting">
+                    <a href="/" class="m-brand__logo-wrapper">
+                        <img alt="" src="/resource/images/FLETA_LOGO.png" />
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="stack mobile-menu">
+            <a id="aside_header_list_mobile_toggle" class="brand_toggler" href="javascript:$('#left').addClass('list-on');">
+                <span></span>
+            </a>
+            <a id="aside_header_menu_mobile_toggle" class="brand_toggler" href="javascript:$('#header_nav').addClass('menu-on');" >
+                <span></span>
+            </a>
+        </div>
+        <div class="header-head" id="header_nav">
+            <button class="mobile-close" onclick="$('#header_nav').removeClass('menu-on')" id="mobile_close_btn"><i class="la la-close"></i></button>
+            <div id="header_menu" class="header-menu">
+                <ul class="menu_nav">
+                    <li class="menu_item <%template "pageTitle" .%> activeDashboard" ><a href="/" class="menu_link" title="Dashboard"><i class="dashboard"></i><span class="text">Dashboard</span></a>
+                    </li>
+                    <li class="menu_item <%template "pageTitle" .%> activeBlocks"><a href="/blocks" class="menu_link" title="Blocks"><i class="blocks"></i><span class="text">Blocks</span></i></a>
+                    </li>
+                    <li class="menu_item <%template "pageTitle" .%> activeTransactions"><a href="/transactions" class="menu_link" title="Transactions"><i class="transactions"></i><span class="text">Transactions</span></i></a>
+                    </li>
+                    <li class="menu_item <%template "pageTitle" .%> activeFormulators"><a href="/formulators" class="menu_link" title="Formulators"><i class="formulators"></i><span class="text">Formulators</span></i></a>
+                    </li>
+                </ul>
+            </div>
+
+        </div>
+    </div>
+</header>
+<%end%>
+
+<%define "LeftAside"%>
+<div id="left" class="aside-left">
+	<button class="left-close" onclick="$('#left').removeClass('list-on');" id="left_close_btn"><i class="la la-close"></i></button>
+
+	<div id="ver_menu" class="aside-menu" style="position: relative;">
+		<ul class="menu_nav">
+			<li class="menu_item active">
+				<a href="index.html" class="menu_link ">
+					<i class="menu_link-icon fleta"></i>
+					<span class="menu_link-title"> <span class="menu_link-wrap"> <span class="text">FLETA Main Chain</span></span></span>
+				</a>
+			</li>
+			<li class="menu_section">
+				<h4 class="menu_section-text">Sub Chains</h4>
+				<i class="menu_section-icon flaticon-more-v2"></i>
+			</li>
+		</ul>
+	</div>
+
+</div>
+<%end%>
+
+<%define "Footer"%>
+<footer class="footer">
+    <img src="/resource/images/Footer_Logo.png" />
+</footer>
+<%end%>
+
+<%define "pagination"%>
+<div id="pagination"></div>
+<div id="paginationTemplate" style="display: none;">
+	<ul class="pagination">
+		<li class="fromTop"><a href="#" onclick="pageClick(this)" class="page-link"></a></li>
+		<li class="previous"><a href="#" onclick="pageClick(this)" class="page-link"></a></li>
+		<li pa="num"><a href="#" onclick="pageClick(this)" class="page-link">1</a></li>
+		<li class="next"><a href="#" onclick="pageClick(this)" class="page-link"></a></li>
+		<li class="toBottom"><a href="#" onclick="pageClick(this)" class="page-link"></a></li>
+	</ul>
+</div>
+<script>
+    function pagination(start, total, sign) {
+		if (sign != -1) {
+			start = total - start
+		}
+        var $pagination = $("#paginationTemplate").clone();
+        var endNum = parseInt(total/10);
+        if (total%10 != 0) {
+            endNum++;
+        }
+        pagination.endPage = endNum;
+        var currentNum = parseInt((total-start)/10)
+        currentNum++
+        pagination.currentPage = currentNum;
+
+        if (currentNum == 1) {
+            $pagination.find(".previous").addClass("disabled")
+            $pagination.find(".fromTop").addClass("disabled")
+        }
+        if (currentNum == endNum) {
+            $pagination.find(".next").addClass("disabled")
+            $pagination.find(".toBottom").addClass("disabled")
+        }
+
+        var startIndex = parseInt(currentNum/10)*10;
+        var endIndex = Math.min(startIndex+10, endNum+1);
+        startIndex = endIndex-10
+        var num = $pagination.find("[pa='num']");
+        for (var i = startIndex ; i < endIndex ; i++) {
+            if (i > 0 && i <= endNum) {
+                var n = num.clone()
+                n.find("a").html(i);
+                if (currentNum == i) {
+                    n.addClass("active");
+                }
+                num.before(n);
+            }
+        }
+        num.remove()
+        console.log(currentNum + " : " + endNum + " : " + (total-((currentNum-1)*10)))
+        $("#pagination").html($pagination.html())
+    }
+
+    function pageClick(This) {
+        var $this = $(This).parent();
+        var startIndex = -1;
+        if ($this.hasClass("fromTop")) {
+            startIndex = 0;
+        } else if ($this.hasClass("previous")) {
+            startIndex = pagination.currentPage-2;
+        } else if ($this.hasClass("next")) {
+            startIndex = pagination.currentPage;
+        } else if ($this.hasClass("toBottom")) {
+            startIndex = pagination.endPage-1;
+        } else {
+            startIndex = $this.find("a").html()-1
+        }
+        getPage(startIndex*10)
+    }
+</script>
+<%end%>

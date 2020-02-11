@@ -4,7 +4,6 @@ import (
 	"log"
 	"runtime"
 	"sync"
-	"time"
 
 	"github.com/fletaio/fleta_testnet/common"
 	"github.com/fletaio/fleta_testnet/common/hash"
@@ -303,12 +302,8 @@ func (cn *Chain) connectBlockWithContext(b *types.Block, ctx *types.Context) err
 	return nil
 }
 
-func toTimeSlot(timestamp uint64) uint32 {
-	return uint32(timestamp / uint64(time.Second))
-}
-
 func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context, sm map[hash.Hash256][]common.PublicHash) error {
-	TxSigners, _, err := cn.validateTransactionSignatures(b, sm)
+	TxSigners, TxHashes, err := cn.validateTransactionSignatures(b, sm)
 	if err != nil {
 		return err
 	}
@@ -332,7 +327,15 @@ func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context, sm ma
 	}
 
 	// Execute Transctions
+	currentSlot := types.ToTimeSlot(b.Header.Timestamp)
 	for i, tx := range b.Transactions {
+		slot := types.ToTimeSlot(tx.Timestamp())
+		if slot < currentSlot-1 {
+			return types.ErrInvalidTransactionTimeSlot
+		} else if slot > currentSlot {
+			return types.ErrInvalidTransactionTimeSlot
+		}
+
 		signers := TxSigners[i]
 		t := b.TransactionTypes[i]
 		pid := uint8(t >> 8)
@@ -343,33 +346,16 @@ func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context, sm ma
 		ctw := types.NewContextWrapper(pid, ctx)
 
 		sn := ctw.Snapshot()
+		if err := ctx.UseTimeSlot(slot, string(TxHashes[i][:])); err != nil {
+			return err
+		}
 		if err := tx.Validate(p, ctw, signers); err != nil {
 			ctw.Revert(sn)
 			return err
 		}
-		if at, is := tx.(AccountTransaction); is {
-			if at.Seq() != ctw.Seq(at.From())+1 {
-				ctw.Revert(sn)
-				return err
-			}
-			ctw.AddSeq(at.From())
-			Result := uint8(0)
-			if err := tx.Execute(p, ctw, uint16(i)); err != nil {
-				Result = 0
-			} else {
-				Result = 1
-			}
-			if Result != b.TransactionResults[i] {
-				return ErrInvalidResult
-			}
-		} else {
-			if err := tx.Execute(p, ctw, uint16(i)); err != nil {
-				ctw.Revert(sn)
-				return err
-			}
-			if 1 != b.TransactionResults[i] {
-				return ErrInvalidResult
-			}
+		if err := tx.Execute(p, ctw, uint16(i)); err != nil {
+			ctw.Revert(sn)
+			return err
 		}
 		if Has, err := ctw.HasAccount(b.Header.Generator); err != nil {
 			ctw.Revert(sn)
@@ -454,9 +440,8 @@ func (cn *Chain) validateTransactionSignatures(b *types.Block, SigMap map[hash.H
 	if len(b.Transactions) > 0 {
 		var wg sync.WaitGroup
 		cpuCnt := runtime.NumCPU()
-		cpuLimit := (len(b.Transactions) / 500) + 1
-		if cpuCnt > cpuLimit {
-			cpuCnt = cpuLimit
+		if len(b.Transactions) < 1000 {
+			cpuCnt = 1
 		}
 		txUnit := len(b.Transactions) / cpuCnt
 		if len(b.Transactions)%cpuCnt != 0 {

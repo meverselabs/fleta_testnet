@@ -1,0 +1,49 @@
+#total_formulators {
+    color: #337fff;
+}
+#total_blocks {
+    color: #6e45e5;
+}
+#total_transactions {
+    color: #7fe5ff;
+}
+
+.badge.badge-success,
+.badge.badge-Success {
+    background-color: #34bfa3;
+    color: #fff;
+}
+
+.badge {background-color: #aaa;color: #fff;}
+.badge.vaultCreateAccount {background-color: #96E500;color: #fff;}
+.badge.vaultCreateMultiAccount{background-color: #3366cc;color: #fff;}
+.badge.vaultTransfer{background-color: #7FE5FF;color: #fff;}
+.badge.vaultWithdraw{background-color: #FFCE00;color: #fff;}
+.badge.vaultAssign{background-color: #ff7f0e;color: #fff;}
+.badge.vaultDeposit{background-color: #2ca02c;color: #fff;}
+.badge.vaultBurn{background-color: #6E45E5;color: #fff;}
+.badge.vaultOpenAccount{background-color: #d62728;color: #fff;}
+.badge.formulatorCreateAlpha{background-color: #9467bd;color: #fff;}
+.badge.formulatorCreateSigma{background-color: #8c564b;color: #fff;}
+.badge.formulatorCreateOmega{background-color: #00E5D3;color: #fff;}
+.badge.formulatorCreateHyper{background-color: #002774;color: #fff;}
+.badge.formulatorRevoke{background-color: #FAACDC;color: #fff;}
+.badge.formulatorStaking{background-color: #F2EC63;color: #fff;}
+.badge.formulatorUnstaking{background-color: #C9D5AE;color: #fff;}
+
+.timeline-3_items .timeline-3_item::before{background-color: #aaa;}
+.timeline-3_items .timeline-3_item.vaultCreateAccount::before{background-color: #96E500;}
+.timeline-3_items .timeline-3_item.vaultCreateMultiAccount::before{background-color: #3366cc;}
+.timeline-3_items .timeline-3_item.vaultTransfer::before{background-color: #7FE5FF;}
+.timeline-3_items .timeline-3_item.vaultWithdraw::before{background-color: #FFCE00;}
+.timeline-3_items .timeline-3_item.vaultAssign::before{background-color: #ff7f0e;}
+.timeline-3_items .timeline-3_item.vaultDeposit::before{background-color: #2ca02c;}
+.timeline-3_items .timeline-3_item.vaultBurn::before{background-color: #6E45E5;}
+.timeline-3_items .timeline-3_item.vaultOpenAccount::before{background-color: #d62728;}
+.timeline-3_items .timeline-3_item.formulatorCreateAlpha::before{background-color: #9467bd;}
+.timeline-3_items .timeline-3_item.formulatorCreateSigma::before{background-color: #8c564b;}
+.timeline-3_items .timeline-3_item.formulatorCreateOmega::before{background-color: #00E5D3;}
+.timeline-3_items .timeline-3_item.formulatorCreateHyper::before{background-color: #002774;}
+.timeline-3_items .timeline-3_item.formulatorRevoke::before{background-color: #FAACDC;}
+.timeline-3_items .timeline-3_item.formulatorStaking::before{background-color: #F2EC63;}
+.timeline-3_items .timeline-3_item.formulatorUnstaking::before{background-color: #C9D5AE;}

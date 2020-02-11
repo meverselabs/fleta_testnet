@@ -1,0 +1,60 @@
+<%define "headScript"%>
+<script>
+    $(function () {
+        var str = '<%index . "TxInfo"%>';
+        var v = JSON.parse(str)
+
+        var $dataBody = $("#dataBody")
+        var i = 0
+        function putData ($dataBody, v, prefix) {
+            for (var k in v) {
+                if (v.hasOwnProperty(k)) {
+                    if (typeof v[k] === "object") {
+                        putData($dataBody, v[k], (void 0 == prefix?"":prefix+" ")+k)
+                    } else {
+                        if (k == "HashPrevBlock") {
+                            var tr = '<tr class="row-'+((i++%2==0)?'even':'odd1')+'"><th>'+(void 0 == prefix?"":prefix+" ")+k+'</th><td><a href="/blockDetail?hash='+v[k]+'">'+v[k]+'</a></td></tr>'
+                        } else if (prefix == "Transactions") {
+                            var tr = '<tr class="row-'+((i++%2==0)?'even':'odd1')+'"><th>'+(void 0 == prefix?"":prefix+" ")+k+'</th><td><a href="/transactionDetail?hash='+v[k]+'">'+v[k]+'</a></td></tr>'
+                        } else {
+                            var tr = '<tr class="row-'+((i++%2==0)?'even':'odd1')+'"><th>'+(void 0 == prefix?"":prefix+" ")+k+'</th><td>'+v[k]+'</td></tr>'
+                        }
+                        $dataBody.append(tr)
+                    }
+                }
+            }
+        }
+        putData ($dataBody, v)
+        console.log(v)
+    })
+</script>
+<%end%>
+
+<%define "pageTitle"%>Block Dtails<%end%>
+
+<%define "FooterIncludeScript"%>
+<script src="/resource/js/common.js"></script>
+<%end%>
+
+<%define "fletaBody"%>
+<div class="row">
+    <div class="col-xl-12">
+        <div class="portlet">
+            <div class="portlet_body">
+                <div class="m-portlet m-portlet--bordered-semi m-portlet--full-height ">
+                    <div class="m-portlet__body">
+                        <table class="table fleta-table fleta-table2">
+                            <colgroup>
+                                <col width="20%">
+                            </colgroup>
+                            <tbody id="dataBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+<%end%>

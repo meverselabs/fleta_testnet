@@ -1,0 +1,99 @@
+<%define "pageTitle"%>Formulators<%end%>
+
+<%define "headScript"%>
+<script >
+    function putData ($dataBody, data) {
+        $dataBody.empty()
+        var eo = 0;
+        for (var i = 0 ; i < data.length ; i++) {
+            var t = $("#rowTemplate").html();
+            t = t.replace(/{oddeven}/g, (eo++%2==0?"even":"odd"))
+
+            for (var k in data[i]) {
+                if (data[i].hasOwnProperty(k)) {
+                    var v = data[i][k]
+                    t = t.replace(new RegExp("{"+k+"}", 'g'), v)
+                }
+            }
+            $dataBody.append(t)
+        }
+    }
+    var v = <%index . "formulatorData"%>;
+    /*
+    v.sort(function(a, b) {
+        if(a.BlockCount < b.BlockCount) {
+            return -1;
+        } else if(a.BlockCount == b.BlockCount) {
+            return 0;
+        } else {
+            return 1;
+        }
+    });
+    v = v.reverse();
+    */
+    $(function () {
+        var $dataBody = $("#dataBody");
+        putData ($dataBody, v);
+
+        var total = 0;
+        for(var i=0; i<v.length; i++) {
+            total += v[i].BlockCount;
+        }
+        $("#totalFormulators").text(v.length + " Formulators");
+        $("#totalCount").text(total + " Blocks");
+    })
+</script>
+<%end%>
+
+<%define "fletaBody"%>
+<div class="row">
+    <div class="col-xl-12">
+        <!--begin:: Widgets/Top Products-->
+        <div class="portlet">
+            <div class="portlet_body no-title-body">
+                <!--begin: Datatable -->
+                <table class="table fleta-table" id="fleta_pagination_blocks">
+                    <thead>
+                        <tr>
+                            <th>Address</th>
+                            <th>Name</th>
+                            <th>BlockCount</th>
+                        </tr>
+                    </thead>
+                    <thead>
+                        <tr>
+                            <td>Total</td>
+                            <td id="totalFormulators"></td>
+                            <td id="totalCount"></td>
+                        </tr>
+                    </thead>
+
+                    <tbody id="dataBody">
+                    </tbody>
+                    
+                </table>
+                <table style="display: none;">
+                    <tbody id="rowTemplate" >
+                    <tr role="row" class="{oddeven}">
+                        <td>{Address}</td>
+                        <td>{Name}</td>
+                        <td>{BlockCount}</td>
+                    </tr>
+                    </tbody>
+                </table>
+                <!--end: Datatable -->
+            </div>
+        </div>
+
+        <!--end:: Widgets/Top Products-->
+    </div>
+
+</div>
+
+<!--End::Section-->
+<%end%>
+
+
+<%define "FooterIncludeScript"%>
+    <script src="/resource/js/common.js"></script>
+<%end%>

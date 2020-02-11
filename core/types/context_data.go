@@ -15,7 +15,6 @@ import (
 type ContextData struct {
 	loader                internalLoader
 	Parent                *ContextData
-	SeqMap                *AddressUint64Map
 	AccountMap            *AddressAccountMap
 	DeletedAccountMap     *AddressAccountMap
 	AccountNameMap        *StringAddressMap
@@ -28,6 +27,7 @@ type ContextData struct {
 	DeletedUTXOMap        *Uint64UTXOMap
 	Events                []Event
 	EventN                uint16
+	TimeSlotMap           *Uint32StringBoolMap
 	isTop                 bool
 }
 
@@ -40,7 +40,6 @@ func NewContextData(loader internalLoader, Parent *ContextData) *ContextData {
 	ctd := &ContextData{
 		loader:                loader,
 		Parent:                Parent,
-		SeqMap:                NewAddressUint64Map(),
 		AccountMap:            NewAddressAccountMap(),
 		DeletedAccountMap:     NewAddressAccountMap(),
 		AccountNameMap:        NewStringAddressMap(),
@@ -53,39 +52,10 @@ func NewContextData(loader internalLoader, Parent *ContextData) *ContextData {
 		DeletedUTXOMap:        NewUint64UTXOMap(),
 		Events:                []Event{},
 		EventN:                EventN,
+		TimeSlotMap:           NewUint32StringBoolMap(),
 		isTop:                 true,
 	}
 	return ctd
-}
-
-// Seq returns the sequence of the account
-func (ctd *ContextData) Seq(addr common.Address) uint64 {
-	if ctd.DeletedAccountMap.Has(addr) {
-		return 0
-	}
-	if seq, has := ctd.SeqMap.Get(addr); has {
-		return seq
-	} else if ctd.Parent != nil {
-		seq := ctd.Parent.Seq(addr)
-		if seq > 0 && ctd.isTop {
-			ctd.SeqMap.Put(addr, seq)
-		}
-		return seq
-	} else {
-		seq := ctd.loader.Seq(addr)
-		if seq > 0 && ctd.isTop {
-			ctd.SeqMap.Put(addr, seq)
-		}
-		return seq
-	}
-}
-
-// AddSeq update the sequence of the target account
-func (ctd *ContextData) AddSeq(addr common.Address) {
-	if ctd.DeletedAccountMap.Has(addr) {
-		return
-	}
-	ctd.SeqMap.Put(addr, ctd.Seq(addr)+1)
 }
 
 // Account returns the account instance of the address
@@ -437,6 +407,50 @@ func (ctd *ContextData) SetProcessData(pid uint8, name []byte, value []byte) {
 	}
 }
 
+// HasTimeSlot returns timeslot is exist or not
+func (ctd *ContextData) HasTimeSlot(slot uint32, key string) bool {
+	if mp, has := ctd.TimeSlotMap.Get(slot); has {
+		if mp.Has(key) {
+			return true
+		}
+	}
+	if has := ctd.loader.HasTimeSlot(slot, key); has {
+		mp, has := ctd.TimeSlotMap.Get(slot)
+		if !has {
+			mp = NewStringBoolMap()
+			ctd.TimeSlotMap.Put(slot, mp)
+		}
+		mp.Put(key, true)
+		return true
+	}
+	return false
+}
+
+// UseTimeSlot consumes timeslot
+func (ctd *ContextData) UseTimeSlot(slot uint32, key string) error {
+	if mp, has := ctd.TimeSlotMap.Get(slot); has {
+		if mp.Has(key) {
+			return ErrUsedTimeSlot
+		}
+	}
+	if has := ctd.loader.HasTimeSlot(slot, key); has {
+		mp, has := ctd.TimeSlotMap.Get(slot)
+		if !has {
+			mp = NewStringBoolMap()
+			ctd.TimeSlotMap.Put(slot, mp)
+		}
+		mp.Put(key, true)
+		return ErrUsedTimeSlot
+	}
+	mp, has := ctd.TimeSlotMap.Get(slot)
+	if !has {
+		mp = NewStringBoolMap()
+		ctd.TimeSlotMap.Put(slot, mp)
+	}
+	mp.Put(key, true)
+	return nil
+}
+
 // Hash returns the hash value of it
 func (ctd *ContextData) Hash() hash.Hash256 {
 	var buffer bytes.Buffer
@@ -451,8 +465,6 @@ func (ctd *ContextData) Hash() hash.Hash256 {
 	buffer.WriteString("PrevHash")
 	lastHash := ctd.loader.LastHash()
 	buffer.Write(lastHash[:])
-	buffer.WriteString("SeqMap")
-	buffer.WriteString(encoding.Hash(ctd.SeqMap).String())
 	buffer.WriteString("AccountMap")
 	buffer.WriteString(encoding.Hash(ctd.AccountMap).String())
 	buffer.WriteString("DeletedAccountMap")
@@ -514,15 +526,6 @@ func (ctd *ContextData) Dump() string {
 	lastHash := ctd.loader.LastHash()
 	buffer.WriteString(lastHash.String())
 	if false {
-		buffer.WriteString("\n")
-		buffer.WriteString("SeqMap\n")
-		ctd.SeqMap.EachAll(func(addr common.Address, seq uint64) bool {
-			buffer.WriteString(addr.String())
-			buffer.WriteString(": ")
-			buffer.WriteString(strconv.FormatUint(seq, 10))
-			buffer.WriteString("\n")
-			return true
-		})
 		buffer.WriteString("\n")
 		buffer.WriteString("AccountMap\n")
 		ctd.AccountMap.EachAll(func(addr common.Address, acc Account) bool {

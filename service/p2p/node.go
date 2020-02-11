@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"runtime"
 	"sync"
@@ -36,6 +37,7 @@ type Node struct {
 	txpool       *txpool.TransactionPool
 	txQ          *queue.ExpireQueue
 	txWaitQ      *queue.LinkedQueue
+	txMySendQ    *queue.Queue
 	txSendQ      *queue.Queue
 	recvChan     chan *RecvMessageItem
 	sendChan     chan *SendMessageItem
@@ -57,6 +59,7 @@ func NewNode(key key.Key, SeedNodeMap map[common.PublicHash]string, cn *chain.Ch
 		txpool:       txpool.NewTransactionPool(),
 		txQ:          queue.NewExpireQueue(),
 		txWaitQ:      queue.NewLinkedQueue(),
+		txMySendQ:    queue.NewQueue(),
 		txSendQ:      queue.NewQueue(),
 		recvChan:     make(chan *RecvMessageItem, 1000),
 		sendChan:     make(chan *SendMessageItem, 1000),
@@ -100,13 +103,16 @@ func (nd *Node) Close() {
 // OnItemExpired is called when the item is expired
 func (nd *Node) OnItemExpired(Interval time.Duration, Key string, Item interface{}, IsLast bool) {
 	item := Item.(*TxMsgItem)
-	cp := nd.cn.Provider()
-	if atx, is := item.Tx.(chain.AccountTransaction); is {
-		seq := cp.Seq(atx.From())
-		if atx.Seq() <= seq {
+	currentSlot := types.ToTimeSlot(nd.cn.Provider().LastTimestamp())
+	slot := types.ToTimeSlot(item.Tx.Timestamp())
+	if currentSlot > 0 {
+		if slot < currentSlot-1 {
+			return
+		} else if slot > currentSlot+10 {
 			return
 		}
 	}
+
 	nd.txSendQ.Push(item)
 	if IsLast {
 		nd.txpool.Remove(item.TxHash, item.Tx)
@@ -149,11 +155,14 @@ func (nd *Node) Run(BindAddress string) {
 			WorkerCount = 1
 		}
 	}
+
+	WorkerCount = runtime.NumCPU()
 	for i := 0; i < WorkerCount; i++ {
 		go func() {
 			for !nd.isClose {
 				Count := 0
 				ctw := nd.cn.Provider().NewLoaderWrapper(1)
+				currentSlot := types.ToTimeSlot(nd.cn.Provider().LastTimestamp())
 				for !nd.isClose {
 					v := nd.txWaitQ.Pop()
 					if v == nil {
@@ -165,8 +174,19 @@ func (nd *Node) Run(BindAddress string) {
 						break
 					}
 					item := v.(*TxMsgItem)
+					slot := types.ToTimeSlot(item.Tx.Timestamp())
+					if currentSlot > 0 {
+						if slot < currentSlot-1 {
+							continue
+						} else if slot > currentSlot+10 {
+							continue
+						}
+					}
+					if ctw.HasTimeSlot(slot, string(item.TxHash[:])) {
+						continue
+					}
 					if err := nd.addTx(ctw, item.TxHash, item.Type, item.Tx, item.Sigs); err != nil {
-						if err != ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrExistTransactionSeq && err != txpool.ErrTooFarSeq && err != txpool.ErrPastSeq {
+						if err != ErrInvalidUTXO && err != txpool.ErrExistTransaction && err != txpool.ErrTransactionPoolOverflowed && err != types.ErrUsedTimeSlot && err != types.ErrInvalidTransactionTimeSlot {
 							rlog.Println("TransactionError", item.TxHash.String(), err.Error())
 							if len(item.PeerID) > 0 {
 								nd.ms.AddBadPoint(item.PeerID, 1)
@@ -174,7 +194,7 @@ func (nd *Node) Run(BindAddress string) {
 						}
 						continue
 					}
-					rlog.Println("TransactionAppended", item.TxHash.String())
+					//rlog.Println("TransactionAppended", item.TxHash.String())
 
 					nd.txSendQ.Push(item)
 				}
@@ -191,12 +211,60 @@ func (nd *Node) Run(BindAddress string) {
 					Txs:        []types.Transaction{},
 					Signatures: [][]common.Signature{},
 				}
+				currentSlot := types.ToTimeSlot(nd.cn.Provider().LastTimestamp())
+				for {
+					v := nd.txMySendQ.Pop()
+					if v == nil {
+						break
+					}
+					m := v.(*TxMsgItem)
+					slot := types.ToTimeSlot(m.Tx.Timestamp())
+					if currentSlot > 0 {
+						if slot < currentSlot-1 {
+							continue
+						} else if slot > currentSlot+10 {
+							continue
+						}
+					}
+					msg.Types = append(msg.Types, m.Type)
+					msg.Txs = append(msg.Txs, m.Tx)
+					msg.Signatures = append(msg.Signatures, m.Sigs)
+					if len(msg.Types) >= 800 {
+						break
+					}
+				}
+				if len(msg.Types) > 0 {
+					//log.Println("Send.TransactionMessage", len(msg.Types))
+					nd.broadcastMessage(1, msg)
+				}
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}()
+
+	go func() {
+		for !nd.isClose {
+			if nd.ms.HasPeer() {
+				msg := &TransactionMessage{
+					Types:      []uint16{},
+					Txs:        []types.Transaction{},
+					Signatures: [][]common.Signature{},
+				}
+				currentSlot := types.ToTimeSlot(nd.cn.Provider().LastTimestamp())
 				for {
 					v := nd.txSendQ.Pop()
 					if v == nil {
 						break
 					}
 					m := v.(*TxMsgItem)
+					slot := types.ToTimeSlot(m.Tx.Timestamp())
+					if currentSlot > 0 {
+						if slot < currentSlot-1 {
+							continue
+						} else if slot > currentSlot+10 {
+							continue
+						}
+					}
 					msg.Types = append(msg.Types, m.Type)
 					msg.Txs = append(msg.Txs, m.Tx)
 					msg.Signatures = append(msg.Signatures, m.Sigs)
@@ -286,8 +354,16 @@ func (nd *Node) Run(BindAddress string) {
 			}
 			nd.cleanPool(b)
 			if nd.cn.Provider().Height()%100 == 0 {
-				rlog.Println("Node", nd.myPublicHash.String(), nd.cn.Provider().Height(), "BlockConnected", b.Header.Generator.String(), b.Header.Height)
+				rlog.Println("Node", nd.myPublicHash.String(), nd.cn.Provider().Height(), "BlockConnected", b.Header.Generator.String(), b.Header.Height, len(b.Transactions))
 			}
+
+			txs := nd.txpool.Clean(types.ToTimeSlot(b.Header.Timestamp))
+			svcs := nd.cn.Services()
+			for _, s := range svcs {
+				s.OnTransactionInPoolExpired(txs)
+			}
+			fmt.Println("EXPIRED", len(txs))
+
 			TargetHeight++
 			Count++
 			if Count > 10 {
@@ -456,8 +532,17 @@ func (nd *Node) handlePeerMessage(ID string, m interface{}) error {
 			return ErrTooManyTrasactionInMessage
 		}
 		ChainID := nd.cn.Provider().ChainID()
+		currentSlot := types.ToTimeSlot(nd.cn.Provider().LastTimestamp())
 		for i, t := range msg.Types {
 			tx := msg.Txs[i]
+			slot := types.ToTimeSlot(tx.Timestamp())
+			if currentSlot > 0 {
+				if slot < currentSlot-1 {
+					continue
+				} else if slot > currentSlot+10 {
+					continue
+				}
+			}
 			sigs := msg.Signatures[i]
 			TxHash := chain.HashTransactionByType(ChainID, t, tx)
 			if !nd.txpool.IsExist(TxHash) {
@@ -507,8 +592,18 @@ func (nd *Node) addBlock(b *types.Block) error {
 	return nil
 }
 
-// AddTx adds tx to txpool that only have valid signatures
+// AddTx adds tx to txpool
 func (nd *Node) AddTx(tx types.Transaction, sigs []common.Signature) error {
+	currentSlot := types.ToTimeSlot(nd.cn.Provider().LastTimestamp())
+	slot := types.ToTimeSlot(tx.Timestamp())
+	if currentSlot > 0 {
+		if slot < currentSlot-1 {
+			return types.ErrInvalidTransactionTimeSlot
+		} else if slot > currentSlot+10 {
+			return types.ErrInvalidTransactionTimeSlot
+		}
+	}
+
 	fc := encoding.Factory("transaction")
 	t, err := fc.TypeOf(tx)
 	if err != nil {
@@ -516,34 +611,18 @@ func (nd *Node) AddTx(tx types.Transaction, sigs []common.Signature) error {
 	}
 	TxHash := chain.HashTransactionByType(nd.cn.Provider().ChainID(), t, tx)
 	ctw := nd.cn.Provider().NewLoaderWrapper(1)
+	if ctw.HasTimeSlot(slot, string(TxHash[:])) {
+		return types.ErrUsedTimeSlot
+	}
 	if err := nd.addTx(ctw, TxHash, t, tx, sigs); err != nil {
 		return err
 	}
-	nd.txSendQ.Push(&TxMsgItem{
+	nd.txMySendQ.Push(&TxMsgItem{
 		TxHash: TxHash,
 		Type:   t,
 		Tx:     tx,
 		Sigs:   sigs,
 	})
-	return nil
-}
-
-// PushTx pushes transaction
-func (nd *Node) PushTx(tx types.Transaction, sigs []common.Signature) error {
-	fc := encoding.Factory("transaction")
-	t, err := fc.TypeOf(tx)
-	if err != nil {
-		return err
-	}
-	TxHash := chain.HashTransactionByType(nd.cn.Provider().ChainID(), t, tx)
-	if !nd.txpool.IsExist(TxHash) {
-		nd.txWaitQ.Push(TxHash, &TxMsgItem{
-			TxHash: TxHash,
-			Type:   t,
-			Tx:     tx,
-			Sigs:   sigs,
-		})
-	}
 	return nil
 }
 
@@ -553,17 +632,8 @@ func (nd *Node) addTx(ctw types.LoaderWrapper, TxHash hash.Hash256, t uint16, tx
 			return txpool.ErrTransactionPoolOverflowed
 		}
 	*/
-	cp := nd.cn.Provider()
 	if nd.txpool.IsExist(TxHash) {
 		return txpool.ErrExistTransaction
-	}
-	if atx, is := tx.(chain.AccountTransaction); is {
-		seq := cp.Seq(atx.From())
-		if atx.Seq() <= seq {
-			return txpool.ErrPastSeq
-		} else if atx.Seq() > seq+100 {
-			return txpool.ErrTooFarSeq
-		}
 	}
 	signers := make([]common.PublicHash, 0, len(sigs))
 	for _, sig := range sigs {
@@ -660,6 +730,11 @@ func (nd *Node) cleanPool(b *types.Block) {
 // TxPoolList returned tx list from txpool
 func (nd *Node) TxPoolList() []*txpool.PoolItem {
 	return nd.txpool.List()
+}
+
+// TxPoolSize returned tx list size  txpool
+func (nd *Node) TxPoolSize() int {
+	return nd.txpool.Size()
 }
 
 // GetTxFromTXPool returned tx from txpool

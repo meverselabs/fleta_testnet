@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"sync"
 	"syscall"
 	"time"
 
@@ -30,8 +29,8 @@ import (
 	"github.com/fletaio/fleta_testnet/process/gateway"
 	"github.com/fletaio/fleta_testnet/process/payment"
 	"github.com/fletaio/fleta_testnet/process/vault"
+	"github.com/fletaio/fleta_testnet/service/explorerservice"
 	"github.com/fletaio/fleta_testnet/service/p2p"
-	"github.com/fletaio/testnet_explorer/explorerservice"
 )
 
 // Config is a configuration for the cmd
@@ -153,10 +152,6 @@ func main() {
 	cn.MustAddProcess(formulator.NewFormulator(3))
 	cn.MustAddProcess(gateway.NewGateway(4))
 	cn.MustAddProcess(payment.NewPayment(5))
-	ws := NewWatcher()
-	if cfg.CreateMode {
-		cn.MustAddService(ws)
-	}
 	e, err := explorerservice.NewBlockExplorer("_explorer", cs, cfg.WebPort)
 	if err != nil {
 		panic(err)
@@ -167,21 +162,24 @@ func main() {
 	}
 	cm.RemoveAll()
 	cm.Add("chain", cn)
-	SeedNodeMap[common.MustParsePublicHash("4YjmYcLVvBSmtjh4Z7frRZhWgdEAYTSABCoqqzhKEJa")] = "45.77.55.56:41000"
-	SeedNodeMap[common.MustParsePublicHash("27n37VV3ebGWSNH5r9wX3ZhUwzxC2heY34UvXjizLDK")] = "108.61.171.0:41000"
-	SeedNodeMap[common.MustParsePublicHash("4GzTnuP7Hky1Dye1AJMLzEXTX2a5kEka5h9AJVvZyTD")] = "144.202.64.6:41000"
-	SeedNodeMap[common.MustParsePublicHash("4ew8HQEwwSqeepMDCnwN9PiYg1uvoeZXyudqdQZBCb3")] = "144.202.73.254:41000"
-	SeedNodeMap[common.MustParsePublicHash("VbMwA5AwSfn93ks8HMv7vvSx4THuzfeefTWVoANEha")] = "217.69.12.225:41000"
-	SeedNodeMap[common.MustParsePublicHash("8eDJ3h8DLW8RSovYUjxmcDi1QNvo7UW64MQxGZ9dnS")] = "45.77.63.38:41000"
-	SeedNodeMap[common.MustParsePublicHash("3ZdKaqaCbGSQ5xmAphzVTeEF1eGzX6iU4LLGD2ox2g9")] = "45.77.58.73:41000"
-	SeedNodeMap[common.MustParsePublicHash("3UHQyJwSSHHCw29fB5xiGk9W7GNf1DjGC284WhW6jpD")] = "45.77.226.211:41000"
-	SeedNodeMap[common.MustParsePublicHash("v3GwqbQehcqNVYbRzDk3TDJ7yJ19DgwoamZnMJZuVg")] = "45.77.92.17:41000"
-	SeedNodeMap[common.MustParsePublicHash("3HhrC3gPR951SjnxjnHpfhRSWH1iR3SbCSwtCHvTLuC")] = "144.202.40.106:41000"
-	SeedNodeMap[common.MustParsePublicHash("MP6nHXaNjZRXFfSffbRuMDhjsS8YFxEsrtrDAZ9bNW")] = "95.179.249.134:41000"
-	SeedNodeMap[common.MustParsePublicHash("4FQ3TVTWQi7TPDerc8nZUBtHyPaNRccA44ushVRWCKW")] = "149.28.241.196:41000"
-	SeedNodeMap[common.MustParsePublicHash("3Ue7mXou8FJouGUyn7MtmahGNgevHt7KssNB2E9wRgL")] = "107.191.62.107:41000"
-	SeedNodeMap[common.MustParsePublicHash("MZtuTqpsdGLm9QXKaM68sTDwUCyitL7q4L75Vrpwbo")] = "95.179.231.195:41000"
-	SeedNodeMap[common.MustParsePublicHash("2fJTp1KMwBqJRqpwGgH5kUCtfBjUBGYgd8oXEA8V9AY")] = "207.246.67.232:41000"
+	SeedNodeMap[common.MustParsePublicHash("4YjmYcLVvBSmtjh4Z7frRZhWgdEAYTSABCoqqzhKEJa")] = "217.69.5.228:41000"
+	SeedNodeMap[common.MustParsePublicHash("27n37VV3ebGWSNH5r9wX3ZhUwzxC2heY34UvXjizLDK")] = "95.179.217.127:41000"
+	SeedNodeMap[common.MustParsePublicHash("4GzTnuP7Hky1Dye1AJMLzEXTX2a5kEka5h9AJVvZyTD")] = "209.250.238.6:41000"
+	SeedNodeMap[common.MustParsePublicHash("4ew8HQEwwSqeepMDCnwN9PiYg1uvoeZXyudqdQZBCb3")] = "136.244.86.130:41000"
+	SeedNodeMap[common.MustParsePublicHash("VbMwA5AwSfn93ks8HMv7vvSx4THuzfeefTWVoANEha")] = "45.32.174.70:41000"
+	SeedNodeMap[common.MustParsePublicHash("8eDJ3h8DLW8RSovYUjxmcDi1QNvo7UW64MQxGZ9dnS")] = "149.28.105.98:41000"
+	SeedNodeMap[common.MustParsePublicHash("3ZdKaqaCbGSQ5xmAphzVTeEF1eGzX6iU4LLGD2ox2g9")] = "149.28.239.124:41000"
+	SeedNodeMap[common.MustParsePublicHash("3UHQyJwSSHHCw29fB5xiGk9W7GNf1DjGC284WhW6jpD")] = "140.82.6.245:41000"
+	SeedNodeMap[common.MustParsePublicHash("v3GwqbQehcqNVYbRzDk3TDJ7yJ19DgwoamZnMJZuVg")] = "45.76.128.131:41000"
+	SeedNodeMap[common.MustParsePublicHash("3HhrC3gPR951SjnxjnHpfhRSWH1iR3SbCSwtCHvTLuC")] = "104.238.187.225:41000"
+	SeedNodeMap[common.MustParsePublicHash("4Ei1HSF3KtDfGrdzHCWfRf4NSTZ2oYCT1CNGFkjV1WB")] = "144.202.66.83:41000"
+	SeedNodeMap[common.MustParsePublicHash("3u6v76WAknSq1j86Pfb6p31FsBAJztPdVmY1kkw4k66")] = "207.148.1.215:41000"
+	SeedNodeMap[common.MustParsePublicHash("MP6nHXaNjZRXFfSffbRuMDhjsS8YFxEsrtrDAZ9bNW")] = "217.69.11.84:41000"
+	SeedNodeMap[common.MustParsePublicHash("4FQ3TVTWQi7TPDerc8nZUBtHyPaNRccA44ushVRWCKW")] = "45.76.87.93:41000"
+	SeedNodeMap[common.MustParsePublicHash("3Ue7mXou8FJouGUyn7MtmahGNgevHt7KssNB2E9wRgL")] = "207.246.76.244:41000"
+	SeedNodeMap[common.MustParsePublicHash("MZtuTqpsdGLm9QXKaM68sTDwUCyitL7q4L75Vrpwbo")] = "207.148.25.159:41000"
+	SeedNodeMap[common.MustParsePublicHash("2fJTp1KMwBqJRqpwGgH5kUCtfBjUBGYgd8oXEA8V9AY")] = "45.77.226.165:41000"
+	SeedNodeMap[common.MustParsePublicHash("3yTFnJJqx3wCiK2Edk9f9JwdvdkC4DP4T1y8xYztMkf")] = "144.202.71.141:41000"
 
 	if err := st.IterBlockAfterContext(func(b *types.Block) error {
 		if cm.IsClosed() {
@@ -206,40 +204,55 @@ func main() {
 	cm.Add("node", nd)
 
 	if cfg.CreateMode {
-		waitMap := map[common.Address]*chan struct{}{}
 		go func() {
+			/*
+				switch cfg.NodeKeyHex {
+				case "f07f3de26238cb57776556c67368665a53a969efeddf582028ae0c2344261feb":
+					Addrs = Addrs[:16000]
+				case "2e56f231189d41397a844232250276992691b9102aa53efd3a315ec2abf76094":
+					Addrs = Addrs[16000:32000]
+				case "74a4bb065b9553e18c5f6aab54bcb07db58f2950b09d3be024e20318512d97bb":
+					Addrs = Addrs[32000:48000]
+				case "f7b6a6291165b7d4cea6d16b911b6f2ba024aac6f160b230b9a04de876f3b045":
+					Addrs = Addrs[48000:64000]
+				case "313b356ea5411567c7237ecf257ff2335cb43a5263712fbbcf8e31ca6731e311":
+					Addrs = Addrs[64000:80000]
+				default:
+					Addrs = []common.Address{}
+				}
+			*/
 			switch cfg.NodeKeyHex {
 			case "f07f3de26238cb57776556c67368665a53a969efeddf582028ae0c2344261feb":
-				Addrs = Addrs[:12000]
+				Addrs = Addrs[:2400]
 			case "2e56f231189d41397a844232250276992691b9102aa53efd3a315ec2abf76094":
-				Addrs = Addrs[12000:24000]
+				Addrs = Addrs[16000:18400]
 			case "74a4bb065b9553e18c5f6aab54bcb07db58f2950b09d3be024e20318512d97bb":
-				Addrs = Addrs[24000:36000]
+				Addrs = Addrs[32000:34400]
 			case "f7b6a6291165b7d4cea6d16b911b6f2ba024aac6f160b230b9a04de876f3b045":
-				Addrs = Addrs[36000:48000]
-			case "4bc61ab268197c465d471d67618a3bf385651a93ed5011b8db08f5dfdca43c1d":
-				Addrs = Addrs[48000:60000]
-			case "bfe9f217f31f52a8e3e975c415d297ff201a4c4abfbcb921eb9013b0c21397f4":
-				Addrs = Addrs[60000:72000]
+				Addrs = Addrs[48000:50400]
+			case "313b356ea5411567c7237ecf257ff2335cb43a5263712fbbcf8e31ca6731e311":
+				Addrs = Addrs[64000:66400]
 			default:
 				Addrs = []common.Address{}
 			}
-
-			for _, Addr := range Addrs {
-				waitMap[Addr] = ws.addAddress(Addr)
+			//Limit := 200
+			Limit := 400
+			if len(Addrs) > Limit {
+				Addrs = Addrs[:Limit]
 			}
 
 			for _, v := range Addrs {
 				go func(Addr common.Address) {
-					Seq := st.Seq(Addr)
 					key, _ := key.NewMemoryKeyFromString("fd1167aad31c104c9fceb5b8a4ffd3e20a272af82176352d3b6ac236d02bafd4")
-					log.Println(Addr.String(), "Start Transaction", Seq)
+					log.Println(Addr.String(), "Start Transaction")
 
-					for i := 0; i < 1; i++ {
-						Seq++
+					for {
+						if nd.TxPoolSize() > 40000 {
+							time.Sleep(100 * time.Millisecond)
+							continue
+						}
 						tx := &vault.Transfer{
 							Timestamp_: uint64(time.Now().UnixNano()),
-							Seq_:       Seq,
 							From_:      Addr,
 							To:         Addr,
 							Amount:     amount.NewCoinAmount(1, 0),
@@ -253,63 +266,7 @@ func main() {
 						}
 						time.Sleep(100 * time.Millisecond)
 					}
-
-					pCh := waitMap[Addr]
-
-					if pCh == nil {
-						log.Println(Addr)
-					}
-
-					ticker := time.NewTicker(9000 * time.Millisecond)
-					for {
-						select {
-						case <-ticker.C:
-							Seq++
-							tx := &vault.Transfer{
-								Timestamp_: uint64(time.Now().UnixNano()),
-								Seq_:       Seq,
-								From_:      Addr,
-								To:         Addr,
-								Amount:     amount.NewCoinAmount(1, 0),
-							}
-							sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
-							if err != nil {
-								panic(err)
-							}
-							if err := nd.AddTx(tx, []common.Signature{sig}); err != nil {
-							}
-						case <-*pCh:
-							NextSeq := st.Seq(Addr) + 1
-							tx := &vault.Transfer{
-								Timestamp_: uint64(time.Now().UnixNano()),
-								Seq_:       NextSeq,
-								From_:      Addr,
-								To:         Addr,
-								Amount:     amount.NewCoinAmount(1, 0),
-							}
-							sig, err := key.Sign(chain.HashTransaction(ChainID, tx))
-							if err != nil {
-								panic(err)
-							}
-							if err := nd.AddTx(tx, []common.Signature{sig}); err != nil {
-							}
-						}
-					}
 				}(v)
-			}
-		}()
-
-		go func() {
-			for {
-				b := <-ws.blockCh
-				for _, t := range b.Transactions {
-					if tx, is := t.(*vault.Transfer); is {
-						pCh, has := waitMap[tx.From()]
-						if has {
-							(*pCh) <- struct{}{}
-						}
-					}
-				}
 			}
 		}()
 	}
@@ -317,47 +274,4 @@ func main() {
 	go nd.Run(":" + strconv.Itoa(cfg.Port))
 
 	cm.Wait()
-}
-
-// Watcher provides json rpc and web service for the chain
-type Watcher struct {
-	sync.Mutex
-	types.ServiceBase
-	waitMap map[common.Address]*chan struct{}
-	blockCh chan *types.Block
-}
-
-// NewWatcher returns a Watcher
-func NewWatcher() *Watcher {
-	s := &Watcher{
-		waitMap: map[common.Address]*chan struct{}{},
-		blockCh: make(chan *types.Block, 1000),
-	}
-	return s
-}
-
-// Name returns the name of the service
-func (s *Watcher) Name() string {
-	return "fleta.watcher"
-}
-
-// Init called when initialize service
-func (s *Watcher) Init(pm types.ProcessManager, cn types.Provider) error {
-	return nil
-}
-
-// OnLoadChain called when the chain loaded
-func (s *Watcher) OnLoadChain(loader types.Loader) error {
-	return nil
-}
-
-func (s *Watcher) addAddress(addr common.Address) *chan struct{} {
-	ch := make(chan struct{})
-	s.waitMap[addr] = &ch
-	return &ch
-}
-
-// OnBlockConnected called when a block is connected to the chain
-func (s *Watcher) OnBlockConnected(b *types.Block, events []types.Event, loader types.Loader) {
-	s.blockCh <- b
 }
