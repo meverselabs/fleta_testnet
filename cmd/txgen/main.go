@@ -247,7 +247,7 @@ func main() {
 					log.Println(Addr.String(), "Start Transaction")
 
 					for {
-						if nd.TxPoolSize() > 40000 {
+						if nd.TxPoolSize() > 60000 {
 							time.Sleep(100 * time.Millisecond)
 							continue
 						}

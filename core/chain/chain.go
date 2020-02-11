@@ -234,7 +234,7 @@ func (cn *Chain) NewContext() *types.Context {
 }
 
 // ConnectBlock try to connect block to the chain
-func (cn *Chain) ConnectBlock(b *types.Block, SigMap map[hash.Hash256][]common.PublicHash) error {
+func (cn *Chain) ConnectBlock(b *types.Block, sp SignerProvider) error {
 	cn.closeLock.RLock()
 	defer cn.closeLock.RUnlock()
 	if cn.isClose {
@@ -252,7 +252,7 @@ func (cn *Chain) ConnectBlock(b *types.Block, SigMap map[hash.Hash256][]common.P
 	}
 
 	ctx := types.NewContext(cn.store)
-	if err := cn.executeBlockOnContext(b, ctx, SigMap); err != nil {
+	if err := cn.executeBlockOnContext(b, ctx, sp); err != nil {
 		return err
 	}
 	return cn.connectBlockWithContext(b, ctx)
@@ -302,8 +302,8 @@ func (cn *Chain) connectBlockWithContext(b *types.Block, ctx *types.Context) err
 	return nil
 }
 
-func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context, sm map[hash.Hash256][]common.PublicHash) error {
-	TxSigners, TxHashes, err := cn.validateTransactionSignatures(b, sm)
+func (cn *Chain) executeBlockOnContext(b *types.Block, ctx *types.Context, sp SignerProvider) error {
+	TxSigners, TxHashes, err := cn.validateTransactionSignatures(b, sp)
 	if err != nil {
 		return err
 	}
@@ -433,10 +433,14 @@ func (cn *Chain) validateHeader(bh *types.Header) error {
 	return nil
 }
 
-func (cn *Chain) validateTransactionSignatures(b *types.Block, SigMap map[hash.Hash256][]common.PublicHash) ([][]common.PublicHash, []hash.Hash256, error) {
+func (cn *Chain) validateTransactionSignatures(b *types.Block, sp SignerProvider) ([][]common.PublicHash, []hash.Hash256, error) {
 	TxHashes := make([]hash.Hash256, len(b.Transactions)+1)
 	TxHashes[0] = b.Header.PrevHash
 	TxSigners := make([][]common.PublicHash, len(b.Transactions))
+
+	if sp != nil {
+		sp.Lock()
+	}
 	if len(b.Transactions) > 0 {
 		var wg sync.WaitGroup
 		cpuCnt := runtime.NumCPU()
@@ -464,8 +468,8 @@ func (cn *Chain) validateTransactionSignatures(b *types.Block, SigMap map[hash.H
 					TxHash := HashTransactionByType(cn.store.chainID, t, tx)
 					TxHashes[sidx+q+1] = TxHash
 					var signers []common.PublicHash
-					if SigMap != nil {
-						signers = SigMap[TxHash]
+					if sp != nil {
+						signers = sp.UnsafeGetSigners(TxHash)
 					}
 					if signers == nil {
 						signers = make([]common.PublicHash, 0, len(sigs))
@@ -488,6 +492,10 @@ func (cn *Chain) validateTransactionSignatures(b *types.Block, SigMap map[hash.H
 			return nil, nil, err
 		}
 	}
+	if sp != nil {
+		sp.Unlock()
+	}
+
 	if h, err := BuildLevelRoot(TxHashes); err != nil {
 		return nil, nil, err
 	} else if b.Header.LevelRootHash != h {

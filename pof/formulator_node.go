@@ -158,7 +158,8 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 	case 7:
 		WorkerCount = 4
 	case 8:
-		WorkerCount = 5
+		//WorkerCount = 5
+		WorkerCount = 4
 	default:
 		WorkerCount = runtime.NumCPU()/2 + 1
 		if WorkerCount >= runtime.NumCPU() {
@@ -169,7 +170,6 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 		}
 	}
 
-	WorkerCount = runtime.NumCPU()
 	for i := 0; i < WorkerCount; i++ {
 		go func() {
 			for !fr.isClose {
@@ -327,17 +327,7 @@ func (fr *FormulatorNode) Run(BindAddress string) {
 				}
 			}
 			if !isConnected {
-				ChainID := fr.cs.cn.Provider().ChainID()
-				sm := map[hash.Hash256][]common.PublicHash{}
-				for i, tx := range b.Transactions {
-					t := b.TransactionTypes[i]
-					TxHash := chain.HashTransactionByType(ChainID, t, tx)
-					item := fr.txpool.Get(TxHash)
-					if item != nil {
-						sm[TxHash] = item.Signers
-					}
-				}
-				if err := fr.cs.cn.ConnectBlock(b, sm); err != nil {
+				if err := fr.cs.cn.ConnectBlock(b, fr.txpool); err != nil {
 					break
 				}
 			}

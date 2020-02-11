@@ -83,6 +83,27 @@ func (tp *TransactionPool) Get(TxHash hash.Hash256) *PoolItem {
 	return tp.txhashMap[TxHash]
 }
 
+// GetSigners returns the pool item signers of the hash
+func (tp *TransactionPool) GetSigners(TxHash hash.Hash256) []common.PublicHash {
+	tp.Lock()
+	defer tp.Unlock()
+
+	if item, has := tp.txhashMap[TxHash]; !has {
+		return nil
+	} else {
+		return item.Signers
+	}
+}
+
+// UnsafeGetSigners returns the pool item signers of the hash
+func (tp *TransactionPool) UnsafeGetSigners(TxHash hash.Hash256) []common.PublicHash {
+	if item, has := tp.txhashMap[TxHash]; !has {
+		return nil
+	} else {
+		return item.Signers
+	}
+}
+
 // Remove deletes the target transaction from the queue
 // If it is an account model based transaction, it will be sorted by the sequence in the address
 func (tp *TransactionPool) Remove(TxHash hash.Hash256, tx types.Transaction) {

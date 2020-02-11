@@ -145,7 +145,8 @@ func (nd *Node) Run(BindAddress string) {
 	case 7:
 		WorkerCount = 5
 	case 8:
-		WorkerCount = 6
+		//WorkerCount = 6
+		WorkerCount = 5
 	default:
 		WorkerCount = runtime.NumCPU()/2 + 2
 		if WorkerCount >= runtime.NumCPU() {
@@ -156,7 +157,6 @@ func (nd *Node) Run(BindAddress string) {
 		}
 	}
 
-	WorkerCount = runtime.NumCPU()
 	for i := 0; i < WorkerCount; i++ {
 		go func() {
 			for !nd.isClose {
@@ -337,17 +337,7 @@ func (nd *Node) Run(BindAddress string) {
 		item := nd.blockQ.PopUntil(TargetHeight)
 		for item != nil {
 			b := item.(*types.Block)
-			ChainID := nd.cn.Provider().ChainID()
-			sm := map[hash.Hash256][]common.PublicHash{}
-			for i, tx := range b.Transactions {
-				t := b.TransactionTypes[i]
-				TxHash := chain.HashTransactionByType(ChainID, t, tx)
-				item := nd.txpool.Get(TxHash)
-				if item != nil {
-					sm[TxHash] = item.Signers
-				}
-			}
-			if err := nd.cn.ConnectBlock(b, sm); err != nil {
+			if err := nd.cn.ConnectBlock(b, nd.txpool); err != nil {
 				rlog.Println(err)
 				panic(err)
 				break

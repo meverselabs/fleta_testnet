@@ -1,15 +1,13 @@
 package chain
 
 import (
-	"github.com/fletaio/fleta_testnet/common"
-	"github.com/fletaio/fleta_testnet/common/hash"
 	"github.com/fletaio/fleta_testnet/core/types"
 )
 
 // Committer enables to commit block with pre-executed context
 type Committer interface {
 	ValidateHeader(bh *types.Header) error
-	ExecuteBlockOnContext(b *types.Block, ctx *types.Context, SigMap map[hash.Hash256][]common.PublicHash) error
+	ExecuteBlockOnContext(b *types.Block, ctx *types.Context, sp SignerProvider) error
 	ConnectBlockWithContext(b *types.Block, ctx *types.Context) error
 	NewContext() *types.Context
 }
@@ -32,11 +30,11 @@ func (ct *chainCommiter) ValidateHeader(bh *types.Header) error {
 	return ct.cn.validateHeader(bh)
 }
 
-func (ct *chainCommiter) ExecuteBlockOnContext(b *types.Block, ctx *types.Context, sm map[hash.Hash256][]common.PublicHash) error {
+func (ct *chainCommiter) ExecuteBlockOnContext(b *types.Block, ctx *types.Context, sp SignerProvider) error {
 	ct.cn.Lock()
 	defer ct.cn.Unlock()
 
-	return ct.cn.executeBlockOnContext(b, ctx, sm)
+	return ct.cn.executeBlockOnContext(b, ctx, sp)
 }
 
 func (ct *chainCommiter) ConnectBlockWithContext(b *types.Block, ctx *types.Context) error {
