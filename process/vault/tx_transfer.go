@@ -18,10 +18,11 @@ func init() {
 		if err := enc.EncodeUint64(item.Timestamp_); err != nil {
 			return err
 		}
-		if err := enc.EncodeBytes(item.From_[:]); err != nil {
+		//bytes.TrimRight(item.From_, string([]byte{0}))
+		if err := enc.EncodeBytes(item.From_[:6]); err != nil {
 			return err
 		}
-		if err := enc.EncodeBytes(item.To[:]); err != nil {
+		if err := enc.EncodeBytes(item.To[:6]); err != nil {
 			return err
 		}
 		if err := enc.EncodeBytes(item.Amount.Bytes()); err != nil {

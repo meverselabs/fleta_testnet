@@ -435,26 +435,27 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 	}
 	switch runtime.NumCPU() {
 	case 4:
-		if MaxTxPerBlock > 2600 {
-			MaxTxPerBlock = 2600
+		if MaxTxPerBlock > 3000 {
+			MaxTxPerBlock = 3000
 		}
 	case 5:
-		if MaxTxPerBlock > 2900 {
-			MaxTxPerBlock = 2900
+		if MaxTxPerBlock > 3000 {
+			MaxTxPerBlock = 3000
 		}
 	case 6:
-		if MaxTxPerBlock > 3200 {
-			MaxTxPerBlock = 3200
+		if MaxTxPerBlock > 3500 {
+			MaxTxPerBlock = 3500
 		}
 	case 7:
 		if MaxTxPerBlock > 3500 {
 			MaxTxPerBlock = 3500
 		}
 	case 8:
-		if MaxTxPerBlock > 3800 {
-			MaxTxPerBlock = 3800
+		if MaxTxPerBlock > 4000 {
+			MaxTxPerBlock = 4000
 		}
 	}
+	//HalfMaxTxPerBlock := MaxTxPerBlock / 2
 	//MaxTxPerBlock = MaxTxPerBlock * 2
 
 	var lastHeader *types.Header
@@ -487,6 +488,12 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 		}
 
 		timer := time.NewTimer(300 * time.Millisecond)
+
+		/*
+			if i >= RemainBlocks-2 {
+				MaxTxPerBlock = HalfMaxTxPerBlock
+			}
+		*/
 
 		fr.txpool.Lock() // Prevent delaying from TxPool.Push
 		Count := 0
