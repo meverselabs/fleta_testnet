@@ -158,16 +158,25 @@ func MessageToPacket(m interface{}) []byte {
 	var buffer bytes.Buffer
 	buffer.Write(binutil.LittleEndian.Uint16ToBytes(t))
 	buffer.Write(make([]byte, 4))
-	zw := gzip.NewWriter(&buffer)
-	enc := encoding.NewEncoder(zw)
+	enc := encoding.NewEncoder(&buffer)
 	if err := enc.Encode(m); err != nil {
 		panic(err)
 	}
-	zw.Flush()
-	zw.Close()
-
 	bs := buffer.Bytes()
 	binutil.LittleEndian.PutUint32(bs[2:], uint32(len(bs)-6))
+	/*
+		buffer.Write(make([]byte, 4))
+		zw := gzip.NewWriter(&buffer)
+		enc := encoding.NewEncoder(zw)
+		if err := enc.Encode(m); err != nil {
+			panic(err)
+		}
+		zw.Flush()
+		zw.Close()
+
+		bs := buffer.Bytes()
+		binutil.LittleEndian.PutUint32(bs[2:], uint32(len(bs)-6))
+	*/
 	return bs
 }
 
@@ -177,7 +186,8 @@ func PacketMessageType(bs []byte) uint16 {
 
 func PacketToMessage(bs []byte) (interface{}, error) {
 	t := PacketMessageType(bs)
-	compressed := true
+	//compressed := true
+	compressed := false
 
 	var mbs []byte
 	if compressed {

@@ -451,11 +451,11 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 			MaxTxPerBlock = 3500
 		}
 	case 8:
-		if MaxTxPerBlock > 4000 {
-			MaxTxPerBlock = 4000
+		if MaxTxPerBlock > 4300 {
+			MaxTxPerBlock = 4300
 		}
 	}
-	//HalfMaxTxPerBlock := MaxTxPerBlock / 2
+	HalfMaxTxPerBlock := MaxTxPerBlock / 2
 	//MaxTxPerBlock = MaxTxPerBlock * 2
 
 	var lastHeader *types.Header
@@ -489,11 +489,9 @@ func (fr *FormulatorNode) genBlock(ID string, msg *BlockReqMessage) error {
 
 		timer := time.NewTimer(300 * time.Millisecond)
 
-		/*
-			if i >= RemainBlocks-2 {
-				MaxTxPerBlock = HalfMaxTxPerBlock
-			}
-		*/
+		if i >= RemainBlocks-2 {
+			MaxTxPerBlock = HalfMaxTxPerBlock
+		}
 
 		fr.txpool.Lock() // Prevent delaying from TxPool.Push
 		Count := 0
